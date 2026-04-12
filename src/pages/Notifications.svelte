@@ -1,9 +1,16 @@
 <script>
   import { notifications, streamingPrefs } from '../lib/stores.js'
+  import StreamingBadge from '../lib/components/StreamingBadge.svelte'
 
-  const LOGO_BASE = 'https://image.tmdb.org/t/p/original'
   const POSTER_BASE = 'https://image.tmdb.org/t/p/w92'
   const TMDB_BASE = 'https://www.themoviedb.org/movie/'
+
+  // Per-notification expanded state keyed by notif.id
+  let expanded = {}
+
+  function toggle(id) {
+    expanded = { ...expanded, [id]: !expanded[id] }
+  }
 </script>
 
 <div class="page">
@@ -24,6 +31,10 @@
   {:else}
     <ul class="notification-list" role="list">
       {#each $notifications as notif (notif.id)}
+        {@const allProviders = notif.providers || [notif.provider]}
+        {@const isExpanded = !!expanded[notif.id]}
+        {@const extraCount = allProviders.length - 1}
+
         <li class="notif-card">
           <a
             href="{TMDB_BASE}{notif.film.tmdb_id}"
@@ -54,16 +65,34 @@
                 <span class="notif-year">({notif.film.year})</span>
               {/if}
             </p>
-            <div class="notif-service">
-              <span class="now-streaming">Now streaming on</span>
-              {#if notif.provider.logo_path}
-                <img
-                  src="{LOGO_BASE}{notif.provider.logo_path}"
-                  alt={notif.provider.provider_name}
-                  class="service-logo"
-                />
-              {/if}
-              <strong class="service-name">{notif.provider.provider_name}</strong>
+
+            <div class="providers-section">
+              <span class="now-streaming">Streaming on</span>
+              <div class="badges-row">
+                {#if isExpanded}
+                  {#each allProviders as provider (provider.provider_id)}
+                    <StreamingBadge
+                      {provider}
+                      subscribed={!!$streamingPrefs[provider.provider_id]}
+                    />
+                  {/each}
+                  {#if extraCount > 0}
+                    <button class="see-more-btn" on:click={() => toggle(notif.id)}>
+                      Show less ▲
+                    </button>
+                  {/if}
+                {:else}
+                  <StreamingBadge
+                    provider={notif.provider}
+                    subscribed={true}
+                  />
+                  {#if extraCount > 0}
+                    <button class="see-more-btn" on:click={() => toggle(notif.id)}>
+                      +{extraCount} more ▾
+                    </button>
+                  {/if}
+                {/if}
+              </div>
             </div>
           </div>
 
@@ -150,12 +179,15 @@
   .notif-info {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
   }
 
   .notif-title {
     font-weight: 600;
     color: var(--text-primary);
-    margin: 0 0 0.4rem;
+    margin: 0;
     font-size: 0.9375rem;
     white-space: nowrap;
     overflow: hidden;
@@ -175,29 +207,37 @@
     font-size: 0.8rem;
   }
 
-  .notif-service {
+  .providers-section {
     display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 4px;
   }
 
   .now-streaming {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--text-secondary);
   }
 
-  .service-logo {
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
-    object-fit: cover;
+  .badges-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
   }
 
-  .service-name {
-    font-size: 0.875rem;
-    color: var(--success);
+  .see-more-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s;
+    line-height: 1;
   }
+
+  .see-more-btn:hover { color: var(--accent); }
 
   .tmdb-link {
     color: var(--text-muted);
@@ -206,6 +246,7 @@
     padding: 4px;
     flex-shrink: 0;
     transition: color 0.15s;
+    align-self: flex-start;
   }
 
   .tmdb-link:hover { color: var(--accent); }
@@ -222,7 +263,5 @@
 
   .empty-icon { font-size: 3rem; margin: 0; }
 
-  .empty-state a {
-    color: var(--accent);
-  }
+  .empty-state a { color: var(--accent); }
 </style>

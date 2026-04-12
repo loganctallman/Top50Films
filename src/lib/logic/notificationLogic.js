@@ -21,7 +21,8 @@ export function generateNotifications(favorites, streamingCache, streamingPrefs)
       notifications.push({
         id: `${film.tmdb_id}-${matchedProvider.provider_id}`,
         film,
-        provider: matchedProvider
+        provider: matchedProvider,   // primary matched (subscribed) service
+        providers: entry.providers   // all available providers for the film
       })
     }
   }
