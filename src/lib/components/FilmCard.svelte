@@ -1,0 +1,224 @@
+<script>
+  import { createEventDispatcher } from 'svelte'
+  import StreamingBadge from './StreamingBadge.svelte'
+
+  // film: { tmdb_id, title, year, poster_path, genre_ids, vote_average, watch_providers }
+  export let film
+  export let streamingPrefs = {}
+  export let isInList = false
+  // variant: 'add' (AddToList / Home suggestions) | 'remove' (MyList)
+  export let variant = 'add'
+  // When true, shows skeleton badge placeholders (providers still loading)
+  export let loadingProviders = false
+
+  const dispatch = createEventDispatcher()
+
+  const POSTER_BASE = 'https://image.tmdb.org/t/p/w342'
+
+  $: providers = film.watch_providers || []
+  $: rating = film.vote_average ? film.vote_average.toFixed(1) : null
+</script>
+
+<article class="film-card">
+  <!-- Poster -->
+  <div class="poster-wrap">
+    {#if film.poster_path}
+      <img
+        src="{POSTER_BASE}{film.poster_path}"
+        alt="Poster for {film.title}"
+        class="poster"
+        loading="lazy"
+      />
+    {:else}
+      <div class="poster-placeholder">🎬</div>
+    {/if}
+
+    {#if rating}
+      <span class="rating-badge" title="TMDB rating">⭐ {rating}</span>
+    {/if}
+  </div>
+
+  <!-- Body -->
+  <div class="card-body">
+    <h3 class="card-title" title={film.title}>{film.title}</h3>
+
+    {#if film.year}
+      <span class="year">{film.year}</span>
+    {/if}
+
+    <!-- Streaming badges -->
+    <div class="badges-row" aria-label="Streaming availability">
+      {#if loadingProviders}
+        <span class="badge-loading">Loading…</span>
+      {:else if providers.length === 0}
+        <span
+          class="no-providers"
+          title="Streaming info unavailable — Availability updated daily"
+        >No streaming info</span>
+      {:else}
+        {#each providers as provider (provider.provider_id)}
+          <StreamingBadge
+            {provider}
+            subscribed={!!streamingPrefs[provider.provider_id]}
+          />
+        {/each}
+      {/if}
+    </div>
+
+    <!-- Action button -->
+    {#if variant === 'add'}
+      <button
+        class="btn btn-add"
+        class:in-list={isInList}
+        disabled={isInList}
+        on:click={() => dispatch('add', film)}
+        title={isInList ? 'Already in your list' : 'Add to your favorites'}
+      >
+        {isInList ? '✓ In Your List' : '+ Add to Favorites'}
+      </button>
+    {:else}
+      <button
+        class="btn btn-remove"
+        on:click={() => dispatch('remove', film)}
+        aria-label="Remove {film.title} from your list"
+      >
+        − Remove
+      </button>
+    {/if}
+  </div>
+</article>
+
+<style>
+  .film-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+
+  .film-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+
+  .poster-wrap {
+    position: relative;
+    aspect-ratio: 2 / 3;
+    background: var(--surface-elevated);
+    overflow: hidden;
+  }
+
+  .poster {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .poster-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    color: var(--text-muted);
+  }
+
+  .rating-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0,0,0,0.75);
+    color: #fbbf24;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 3px 6px;
+    border-radius: 4px;
+    backdrop-filter: blur(4px);
+  }
+
+  .card-body {
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    flex: 1;
+  }
+
+  .card-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.3;
+  }
+
+  .year {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .badges-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-height: 26px;
+    align-items: center;
+    margin: 0.15rem 0;
+  }
+
+  .badge-loading,
+  .no-providers {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .btn {
+    margin-top: auto;
+    padding: 0.45rem 0.75rem;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+    width: 100%;
+  }
+
+  .btn-add {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .btn-add:hover:not(:disabled) {
+    background: #c73550;
+  }
+
+  .btn-add.in-list,
+  .btn-add:disabled {
+    background: var(--surface-elevated);
+    color: var(--text-muted);
+    cursor: default;
+  }
+
+  .btn-remove {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+
+  .btn-remove:hover {
+    border-color: #e94560;
+    color: #e94560;
+    background: rgba(233, 69, 96, 0.08);
+  }
+</style>
