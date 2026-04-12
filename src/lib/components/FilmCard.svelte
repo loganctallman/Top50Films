@@ -17,6 +17,10 @@
 
   $: providers = film.watch_providers || []
   $: rating = film.vote_average ? film.vote_average.toFixed(1) : null
+
+  let expanded = false
+  $: firstProvider = providers[0] ?? null
+  $: extraCount = providers.length - 1
 </script>
 
 <article class="film-card">
@@ -47,7 +51,7 @@
     {/if}
 
     <!-- Streaming badges -->
-    <div class="badges-row" aria-label="Streaming availability">
+    <div class="badges-section" aria-label="Streaming availability">
       {#if loadingProviders}
         <span class="badge-loading">Loading…</span>
       {:else if providers.length === 0}
@@ -55,13 +59,30 @@
           class="no-providers"
           title="Streaming info unavailable — Availability updated daily"
         >No streaming info</span>
+      {:else if expanded}
+        <div class="badges-row">
+          {#each providers as provider (provider.provider_id)}
+            <StreamingBadge
+              {provider}
+              subscribed={!!streamingPrefs[provider.provider_id]}
+            />
+          {/each}
+        </div>
+        <button class="see-more-btn" on:click|stopPropagation={() => expanded = false}>
+          Show less ▲
+        </button>
       {:else}
-        {#each providers as provider (provider.provider_id)}
+        <div class="badges-row">
           <StreamingBadge
-            {provider}
-            subscribed={!!streamingPrefs[provider.provider_id]}
+            provider={firstProvider}
+            subscribed={!!streamingPrefs[firstProvider.provider_id]}
           />
-        {/each}
+          {#if extraCount > 0}
+            <button class="see-more-btn" on:click|stopPropagation={() => expanded = true}>
+              +{extraCount} more ▾
+            </button>
+          {/if}
+        </div>
       {/if}
     </div>
 
@@ -166,13 +187,35 @@
     color: var(--text-muted);
   }
 
+  .badges-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0.15rem 0;
+    min-height: 26px;
+  }
+
   .badges-row {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    min-height: 26px;
     align-items: center;
-    margin: 0.15rem 0;
+  }
+
+  .see-more-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s;
+    line-height: 1;
+  }
+
+  .see-more-btn:hover {
+    color: var(--accent);
   }
 
   .badge-loading,
