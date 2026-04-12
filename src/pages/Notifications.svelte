@@ -11,6 +11,10 @@
   function toggle(id) {
     expanded = { ...expanded, [id]: !expanded[id] }
   }
+
+  function dismiss(id) {
+    notifications.update(all => all.filter(n => n.id !== id))
+  }
 </script>
 
 <div class="page">
@@ -96,13 +100,20 @@
             </div>
           </div>
 
-          <a
-            href="{TMDB_BASE}{notif.film.tmdb_id}"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="tmdb-link"
-            aria-label="View {notif.film.title} on TMDB"
-          >↗</a>
+          <div class="notif-actions">
+            <a
+              href="{TMDB_BASE}{notif.film.tmdb_id}"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="tmdb-link"
+              aria-label="View {notif.film.title} on TMDB"
+            >↗</a>
+            <button
+              class="dismiss-btn"
+              on:click={() => dismiss(notif.id)}
+              aria-label="Remove notification for {notif.film.title}"
+            >Remove</button>
+          </div>
         </li>
       {/each}
     </ul>
@@ -239,17 +250,41 @@
 
   .see-more-btn:hover { color: var(--accent); }
 
+  .notif-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    align-self: flex-start;
+  }
+
   .tmdb-link {
     color: var(--text-muted);
     font-size: 1.1rem;
     text-decoration: none;
     padding: 4px;
-    flex-shrink: 0;
     transition: color 0.15s;
-    align-self: flex-start;
   }
 
   .tmdb-link:hover { color: var(--accent); }
+
+  .dismiss-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    padding: 3px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .dismiss-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 
   .empty-state {
     text-align: center;

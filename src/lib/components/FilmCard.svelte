@@ -87,15 +87,21 @@
     </div>
 
     <!-- Action button -->
-    {#if variant === 'add'}
+    {#if variant === 'add' && isInList}
+      <button
+        class="btn btn-remove"
+        on:click={() => dispatch('remove', film)}
+        aria-label="Remove {film.title} from your list"
+      >
+        − Remove from List
+      </button>
+    {:else if variant === 'add'}
       <button
         class="btn btn-add"
-        class:in-list={isInList}
-        disabled={isInList}
         on:click={() => dispatch('add', film)}
-        title={isInList ? 'Already in your list' : 'Add to your favorites'}
+        title="Add to your favorites"
       >
-        {isInList ? '✓ In Your List' : '+ Add to Favorites'}
+        + Add to Favorites
       </button>
     {:else}
       <button

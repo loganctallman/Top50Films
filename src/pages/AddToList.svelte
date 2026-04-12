@@ -3,7 +3,7 @@
   import { push } from 'svelte-spa-router'
   import { favorites, streamingPrefs } from '../lib/stores.js'
   import { apiService } from '../lib/services/apiService.js'
-  import { addFavorite, isDuplicate, MAX_FAVORITES } from '../lib/logic/favoritesLogic.js'
+  import { addFavorite, removeFavorite, isDuplicate, MAX_FAVORITES } from '../lib/logic/favoritesLogic.js'
   import FilmCard from '../lib/components/FilmCard.svelte'
   import SkeletonCard from '../lib/components/SkeletonCard.svelte'
 
@@ -132,6 +132,13 @@
     setTimeout(() => { addMessage = null; addMessageFilmId = null }, 1500)
   }
 
+  function handleRemove(e) {
+    favorites.set(removeFavorite($favorites, e.detail.tmdb_id))
+    addMessage = 'Removed'
+    addMessageFilmId = e.detail.tmdb_id
+    setTimeout(() => { addMessage = null; addMessageFilmId = null }, 1500)
+  }
+
   $: displayError = searchQuery.trim() ? searchError : filmsError
   $: loading = loadingFilms || isSearching
 </script>
@@ -202,6 +209,7 @@
             isInList={isDuplicate($favorites, film.tmdb_id)}
             loadingProviders={loadingProviders && providerMap[film.tmdb_id] === undefined}
             on:add={handleAdd}
+            on:remove={handleRemove}
           />
           {#if addMessageFilmId === film.tmdb_id && addMessage}
             <div class="add-message" class:success={addMessage === 'Added!'}>
