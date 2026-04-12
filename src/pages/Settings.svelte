@@ -30,6 +30,26 @@
     }))
   }
 
+  $: allSelected = allProviders.length > 0 && allProviders.every(p => $streamingPrefs[p.provider_id])
+
+  function toggleAll() {
+    if (allSelected) {
+      // Deselect all
+      streamingPrefs.update(prefs => {
+        const updated = { ...prefs }
+        allProviders.forEach(p => { updated[p.provider_id] = false })
+        return updated
+      })
+    } else {
+      // Select all
+      streamingPrefs.update(prefs => {
+        const updated = { ...prefs }
+        allProviders.forEach(p => { updated[p.provider_id] = true })
+        return updated
+      })
+    }
+  }
+
   function deleteAllData() {
     storageService.clearAll()
     onboardingComplete.set(false)
@@ -44,7 +64,14 @@
   <!-- Streaming Services -->
   <section class="section">
     <h2>Streaming Services</h2>
-    <p class="section-desc">Toggle the services you subscribe to. We'll highlight matching films in your list.</p>
+    <div class="section-desc-row">
+      <p class="section-desc">Toggle the services you subscribe to. We'll highlight matching films in your list.</p>
+      {#if allProviders.length > 0}
+        <button class="toggle-all-btn" on:click={toggleAll}>
+          {allSelected ? 'Deselect All' : 'Select All'}
+        </button>
+      {/if}
+    </div>
 
     {#if loadingProviders}
       <div class="providers-grid">
@@ -151,10 +178,37 @@
     color: var(--text-primary);
   }
 
+  .section-desc-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+
   .section-desc {
     font-size: 0.8125rem;
     color: var(--text-secondary);
-    margin: 0 0 1.25rem;
+    margin: 0;
+  }
+
+  .toggle-all-btn {
+    flex-shrink: 0;
+    padding: 0.35rem 0.875rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+
+  .toggle-all-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
   .providers-grid {
