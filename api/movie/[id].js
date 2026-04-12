@@ -4,25 +4,29 @@ function errorResponse(res, status, message) {
   return res.status(status).json({ error: true, message, status })
 }
 
+function tmdbHeaders() {
+  return {
+    Authorization: `Bearer ${process.env.TMDB_API_KEY}`,
+    accept: 'application/json'
+  }
+}
+
 export default async function handler(req, res) {
-  const apiKey = process.env.TMDB_API_KEY
-  if (!apiKey) return errorResponse(res, 500, 'API key not configured')
+  if (!process.env.TMDB_API_KEY) return errorResponse(res, 500, 'API key not configured')
 
   const { id } = req.query
   if (!id) return errorResponse(res, 400, 'Missing movie id')
 
   try {
-    const url = `${TMDB_BASE}/movie/${id}?api_key=${apiKey}&append_to_response=watch%2Fproviders`
-    const tmdbRes = await fetch(url)
+    const url = `${TMDB_BASE}/movie/${id}?append_to_response=watch%2Fproviders`
+    const tmdbRes = await fetch(url, { headers: tmdbHeaders() })
 
     if (tmdbRes.status === 404) return errorResponse(res, 404, 'Movie not found')
     if (!tmdbRes.ok) return errorResponse(res, tmdbRes.status, 'TMDB request failed')
 
     const data = await tmdbRes.json()
 
-    // Extract US flatrate (subscription streaming) providers
-    const watchProvidersRaw = data['watch/providers']
-    const usProviders = watchProvidersRaw?.results?.US?.flatrate || []
+    const usProviders = data['watch/providers']?.results?.US?.flatrate || []
 
     const watch_providers = usProviders.map(p => ({
       provider_id: p.provider_id,
@@ -40,7 +44,7 @@ export default async function handler(req, res) {
       overview: data.overview || '',
       watch_providers
     })
-  } catch (err) {
+  } catch {
     return errorResponse(res, 503, 'Upstream request failed')
   }
 }

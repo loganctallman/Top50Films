@@ -4,6 +4,13 @@ function errorResponse(res, status, message) {
   return res.status(status).json({ error: true, message, status })
 }
 
+function tmdbHeaders() {
+  return {
+    Authorization: `Bearer ${process.env.TMDB_API_KEY}`,
+    accept: 'application/json'
+  }
+}
+
 function normalizeFilm(movie) {
   return {
     tmdb_id: movie.id,
@@ -18,19 +25,16 @@ function normalizeFilm(movie) {
 }
 
 export default async function handler(req, res) {
-  const apiKey = process.env.TMDB_API_KEY
-  if (!apiKey) return errorResponse(res, 500, 'API key not configured')
+  if (!process.env.TMDB_API_KEY) return errorResponse(res, 500, 'API key not configured')
 
   const { query, page = 1 } = req.query
   if (!query || !query.trim()) return errorResponse(res, 400, 'Missing query parameter')
 
   try {
-    const url = `${TMDB_BASE}/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}&page=${page}&include_adult=false`
-    const tmdbRes = await fetch(url)
+    const url = `${TMDB_BASE}/search/movie?query=${encodeURIComponent(query)}&page=${page}&include_adult=false`
+    const tmdbRes = await fetch(url, { headers: tmdbHeaders() })
 
-    if (!tmdbRes.ok) {
-      return errorResponse(res, tmdbRes.status, 'TMDB request failed')
-    }
+    if (!tmdbRes.ok) return errorResponse(res, tmdbRes.status, 'TMDB request failed')
 
     const data = await tmdbRes.json()
 
@@ -40,7 +44,7 @@ export default async function handler(req, res) {
       total_pages: data.total_pages,
       page: data.page
     })
-  } catch (err) {
+  } catch {
     return errorResponse(res, 503, 'Upstream request failed')
   }
 }
