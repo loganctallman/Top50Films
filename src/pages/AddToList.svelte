@@ -132,11 +132,6 @@
     setTimeout(() => { addMessage = null; addMessageFilmId = null }, 1500)
   }
 
-  function filmWithProviders(film) {
-    const providers = providerMap[film.tmdb_id]
-    return { ...film, watch_providers: providers || [] }
-  }
-
   $: displayError = searchQuery.trim() ? searchError : filmsError
   $: loading = loadingFilms || isSearching
 </script>
@@ -200,10 +195,9 @@
   {:else}
     <div class="grid">
       {#each films as film (film.tmdb_id)}
-        {@const enriched = filmWithProviders(film)}
         <div class="card-wrap">
           <FilmCard
-            film={enriched}
+            film={{...film, watch_providers: providerMap[film.tmdb_id] || []}}
             streamingPrefs={$streamingPrefs}
             isInList={isDuplicate($favorites, film.tmdb_id)}
             loadingProviders={loadingProviders && providerMap[film.tmdb_id] === undefined}
