@@ -12,10 +12,21 @@
 
   let deleteStep = 0 // 0 = idle, 1 = confirming
   let showAllProviders = false
+  let providerSearch = ''
 
   const PROVIDER_LIMIT = 30
-  $: visibleProviders = showAllProviders ? allProviders : allProviders.slice(0, PROVIDER_LIMIT)
-  $: hasMore = allProviders.length > PROVIDER_LIMIT
+
+  $: filteredProviders = providerSearch.trim()
+    ? allProviders.filter(p =>
+        p.provider_name.toLowerCase().includes(providerSearch.trim().toLowerCase())
+      )
+    : allProviders
+
+  $: visibleProviders = (providerSearch.trim() || showAllProviders)
+    ? filteredProviders
+    : filteredProviders.slice(0, PROVIDER_LIMIT)
+
+  $: hasMore = !providerSearch.trim() && allProviders.length > PROVIDER_LIMIT
 
   onMount(async () => {
     try {
@@ -78,6 +89,21 @@
         </button>
       {/if}
     </div>
+
+    {#if allProviders.length > 0 && !loadingProviders && !providersError}
+      <div class="provider-search-wrap">
+        <input
+          class="provider-search"
+          type="search"
+          placeholder="Search services…"
+          bind:value={providerSearch}
+          aria-label="Search streaming services"
+        />
+        {#if providerSearch && filteredProviders.length === 0}
+          <p class="provider-search-empty">No services match "{providerSearch}"</p>
+        {/if}
+      </div>
+    {/if}
 
     {#if loadingProviders}
       <div class="providers-grid">
@@ -235,6 +261,33 @@
   }
 
   .show-all-btn:hover { color: var(--accent); }
+
+  .provider-search-wrap {
+    margin-bottom: 1rem;
+  }
+
+  .provider-search {
+    width: 100%;
+    min-width: 0;
+    padding: 0.55rem 0.875rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+  }
+
+  .provider-search:focus { border-color: var(--accent); }
+  .provider-search::placeholder { color: var(--text-muted); }
+
+  .provider-search-empty {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin: 0.5rem 0 0;
+  }
 
   .providers-grid {
     display: grid;
