@@ -224,10 +224,12 @@
 
 <style>
   .page {
+    width: 100%;
     max-width: 1200px;
     margin: 0 auto;
     padding: 1.5rem 1rem 3rem;
     overflow-x: hidden;
+    box-sizing: border-box;
   }
 
   .page-header {
@@ -235,6 +237,8 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 1.25rem;
+    min-width: 0;
+    overflow: hidden;
   }
 
   h1 {
@@ -262,6 +266,7 @@
   .search-wrap {
     position: relative;
     margin-bottom: 1rem;
+    width: 100%;
   }
 
   .search-input {
@@ -318,14 +323,17 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 1rem;
+    width: 100%;
   }
 
   @media (max-width: 480px) {
-    .grid { grid-template-columns: repeat(2, 1fr); }
+    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 
   .card-wrap {
     position: relative;
+    overflow: hidden;
+    min-width: 0;
   }
 
   .add-message {
