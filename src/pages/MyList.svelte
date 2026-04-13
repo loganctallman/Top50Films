@@ -4,8 +4,15 @@
   import { removeFavorite } from '../lib/logic/favoritesLogic.js'
   import FilmCard from '../lib/components/FilmCard.svelte'
 
+  let removeAllStep = 0 // 0 = idle, 1 = confirming
+
   function handleRemove(e) {
     favorites.set(removeFavorite($favorites, e.detail.tmdb_id))
+  }
+
+  function removeAll() {
+    favorites.set([])
+    removeAllStep = 0
   }
 
   function filmWithProviders(film) {
@@ -20,11 +27,26 @@
 <div class="page">
   <div class="page-header">
     <h1>My List</h1>
-    {#if $favorites.length < 50}
-      <button class="add-more-btn" on:click={() => push('/add')}>
-        + Add More
-      </button>
-    {/if}
+    <div class="header-actions">
+      {#if $favorites.length > 0}
+        {#if removeAllStep === 0}
+          <button class="remove-all-btn" on:click={() => removeAllStep = 1}>
+            Remove All
+          </button>
+        {:else}
+          <div class="confirm-row">
+            <span class="confirm-label">Remove all?</span>
+            <button class="confirm-yes" on:click={removeAll}>Yes</button>
+            <button class="confirm-cancel" on:click={() => removeAllStep = 0}>Cancel</button>
+          </div>
+        {/if}
+      {/if}
+      {#if $favorites.length < 50}
+        <button class="add-more-btn" on:click={() => push('/add')}>
+          + Add More
+        </button>
+      {/if}
+    </div>
   </div>
 
   {#if $favorites.length === 0}
@@ -76,6 +98,72 @@
     font-size: 0.8125rem;
     color: var(--text-muted);
     margin: 0 0 1rem;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .remove-all-btn {
+    padding: 0.4rem 1rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .remove-all-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .confirm-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .confirm-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .confirm-yes {
+    padding: 0.35rem 0.75rem;
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .confirm-yes:hover { background: #c73550; }
+
+  .confirm-cancel {
+    padding: 0.35rem 0.75rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .confirm-cancel:hover {
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
   }
 
   .add-more-btn {

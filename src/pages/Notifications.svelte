@@ -8,22 +8,45 @@
 
   // Per-notification expanded state keyed by notif.id
   let expanded = {}
+  let removeAllStep = 0 // 0 = idle, 1 = confirming
 
   function toggle(id) {
     expanded = { ...expanded, [id]: !expanded[id] }
   }
 
-  // "Watched" removes the film from favorites entirely (and clears the notification)
-  function markWatched(notif) {
+  function removeFromList(notif) {
     favorites.set(removeFavorite($favorites, notif.film.tmdb_id))
     notifications.update(all => all.filter(n => n.id !== notif.id))
+  }
+
+  function removeAll() {
+    let favs = $favorites
+    $notifications.forEach(n => { favs = removeFavorite(favs, n.film.tmdb_id) })
+    favorites.set(favs)
+    notifications.set([])
+    removeAllStep = 0
   }
 </script>
 
 <div class="page">
   <div class="page-header">
-    <h1>Notifications</h1>
-    <p class="disclaimer">Availability data updated daily — minor delays possible</p>
+    <div>
+      <h1>Notifications</h1>
+      <p class="disclaimer">Availability data updated daily — minor delays possible</p>
+    </div>
+    {#if $notifications.length > 0}
+      {#if removeAllStep === 0}
+        <button class="remove-all-btn" on:click={() => removeAllStep = 1}>
+          Remove All
+        </button>
+      {:else}
+        <div class="confirm-row">
+          <span class="confirm-label">Remove all from list?</span>
+          <button class="confirm-yes" on:click={removeAll}>Yes</button>
+          <button class="confirm-cancel" on:click={() => removeAllStep = 0}>Cancel</button>
+        </div>
+      {/if}
+    {/if}
   </div>
 
   {#if $notifications.length === 0}
@@ -105,9 +128,9 @@
             >↗</a>
             <button
               class="dismiss-btn"
-              on:click={() => markWatched(notif)}
-              aria-label="Mark {notif.film.title} as watched and remove from list"
-            >Watched</button>
+              on:click={() => removeFromList(notif)}
+              aria-label="Remove {notif.film.title} from My List"
+            >Remove from My List</button>
           </div>
         </li>
       {/each}
@@ -126,7 +149,74 @@
   }
 
   .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
     margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .remove-all-btn {
+    flex-shrink: 0;
+    padding: 0.4rem 1rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .remove-all-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .confirm-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+
+  .confirm-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .confirm-yes {
+    padding: 0.35rem 0.75rem;
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .confirm-yes:hover { background: #c73550; }
+
+  .confirm-cancel {
+    padding: 0.35rem 0.75rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .confirm-cancel:hover {
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
   }
 
   h1 {
