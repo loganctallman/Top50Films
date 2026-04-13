@@ -37,6 +37,8 @@
     white-space: nowrap;
     cursor: default;
     transition: border-color 0.15s;
+    max-width: 100%;
+    overflow: hidden;
   }
 
   .badge.subscribed {
@@ -54,7 +56,7 @@
   }
 
   .badge-name {
-    max-width: 80px;
+    max-width: 120px;
     overflow: hidden;
     text-overflow: ellipsis;
   }
