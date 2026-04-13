@@ -14,7 +14,7 @@
   let showAllProviders = false
   let providerSearch = ''
 
-  const PROVIDER_LIMIT = 30
+  const PROVIDER_LIMIT = 32
 
   $: filteredProviders = providerSearch.trim()
     ? allProviders.filter(p =>
