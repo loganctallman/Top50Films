@@ -266,12 +266,13 @@
 
   .search-input {
     width: 100%;
+    min-width: 0;
     padding: 0.65rem 1rem;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     color: var(--text-primary);
-    font-size: 0.9375rem;
+    font-size: 1rem;
     outline: none;
     transition: border-color 0.15s;
   }
