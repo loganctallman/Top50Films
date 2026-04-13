@@ -27,14 +27,14 @@ function normalizeFilm(movie) {
 export default async function handler(req, res) {
   if (!process.env.TMDB_API_KEY) return errorResponse(res, 500, 'API key not configured')
 
-  const { genre_id } = req.query
+  const { genre_id, page = '1' } = req.query
 
   try {
     const params = new URLSearchParams({
       sort_by: 'vote_average.desc',
       'vote_count.gte': '1000',
       include_adult: 'false',
-      page: '1'
+      page: String(Number(page) || 1)
     })
 
     if (genre_id) params.set('with_genres', genre_id)

@@ -28,12 +28,17 @@
   let films = []
   let loadingFilms = false
   let loadingProviders = false
+  let loadingMore = false
   let filmsError = null
+  let currentPage = 1
+  let hasMorePages = false
 
   let searchQuery = ''
   let searchDebounce
   let isSearching = false
   let searchError = null
+  let searchPage = 1
+  let hasMoreSearchPages = false
 
   // Per-film provider loading map
   let providerMap = {}
@@ -56,10 +61,13 @@
     providerMap = {}
     filmsError = null
     loadingFilms = true
+    currentPage = 1
+    hasMorePages = false
 
     try {
-      const data = await apiService.genreTop50(genre.id)
+      const data = await apiService.genreTop50(genre.id, 1)
       films = data.results || []
+      hasMorePages = films.length === 20
       if (films.length === 0) filmsError = 'no-results'
     } catch {
       filmsError = 'network'
@@ -70,6 +78,25 @@
     if (films.length > 0) fetchProvidersForFilms(films)
   }
 
+  async function loadMoreGenre() {
+    if (loadingMore) return
+    loadingMore = true
+    const nextPage = currentPage + 1
+
+    try {
+      const data = await apiService.genreTop50(selectedGenre.id, nextPage)
+      const newFilms = data.results || []
+      currentPage = nextPage
+      hasMorePages = newFilms.length === 20
+      films = [...films, ...newFilms]
+      fetchProvidersForFilms(newFilms)
+    } catch {
+      // silently fail — existing results stay
+    } finally {
+      loadingMore = false
+    }
+  }
+
   async function fetchProvidersForFilms(filmList) {
     loadingProviders = true
     const ids = filmList.map(f => f.tmdb_id)
@@ -78,7 +105,7 @@
       if (result.status === 'fulfilled') {
         providerMap[ids[i]] = result.value.watch_providers || []
       } else {
-        providerMap[ids[i]] = null // null = failed
+        providerMap[ids[i]] = null
       }
     })
     providerMap = providerMap // trigger reactivity
@@ -99,10 +126,13 @@
     providerMap = {}
     searchError = null
     isSearching = true
+    searchPage = 1
+    hasMoreSearchPages = false
 
     try {
-      const data = await apiService.search(query)
+      const data = await apiService.search(query, 1)
       films = data.results || []
+      hasMoreSearchPages = films.length === 20
       if (films.length === 0) searchError = 'no-results'
     } catch {
       searchError = 'network'
@@ -111,6 +141,25 @@
     }
 
     if (films.length > 0) fetchProvidersForFilms(films)
+  }
+
+  async function loadMoreSearch() {
+    if (loadingMore) return
+    loadingMore = true
+    const nextPage = searchPage + 1
+
+    try {
+      const data = await apiService.search(searchQuery, nextPage)
+      const newFilms = data.results || []
+      searchPage = nextPage
+      hasMoreSearchPages = newFilms.length === 20
+      films = [...films, ...newFilms]
+      fetchProvidersForFilms(newFilms)
+    } catch {
+      // silently fail
+    } finally {
+      loadingMore = false
+    }
   }
 
   function handleAdd(e) {
@@ -141,6 +190,7 @@
 
   $: displayError = searchQuery.trim() ? searchError : filmsError
   $: loading = loadingFilms || isSearching
+  $: showLoadMore = !loading && !displayError && (searchQuery.trim() ? hasMoreSearchPages : hasMorePages)
 </script>
 
 <div class="page">
@@ -218,6 +268,18 @@
           {/if}
         </div>
       {/each}
+    </div>
+  {/if}
+
+  {#if showLoadMore}
+    <div class="load-more-wrap">
+      <button
+        class="load-more-btn"
+        on:click={searchQuery.trim() ? loadMoreSearch : loadMoreGenre}
+        disabled={loadingMore}
+      >
+        {loadingMore ? 'Loading…' : 'Load more'}
+      </button>
     </div>
   {/if}
 </div>
@@ -374,4 +436,32 @@
   }
 
   .retry-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .load-more-wrap {
+    display: flex;
+    justify-content: center;
+    margin-top: 1.5rem;
+  }
+
+  .load-more-btn {
+    padding: 0.6rem 2rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .load-more-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .load-more-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
 </style>

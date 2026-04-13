@@ -21,9 +21,10 @@ export const apiService = {
     return request(`/movie/${id}`)
   },
 
-  genreTop50(genre_id) {
-    const q = genre_id ? `?genre_id=${genre_id}` : ''
-    return request(`/genre-top50${q}`)
+  genreTop50(genre_id, page = 1) {
+    const params = new URLSearchParams({ page })
+    if (genre_id) params.set('genre_id', genre_id)
+    return request(`/genre-top50?${params}`)
   },
 
   providers() {
