@@ -132,7 +132,7 @@
       </p>
     {:else}
       <div class="services-row">
-        {#each subscribedProviders as provider (provider.provider_id)}
+        {#each subscribedProviders.slice(0, 20) as provider (provider.provider_id)}
           <div class="service-chip">
             {#if provider.logo_path}
               <img
@@ -146,8 +146,13 @@
         {/each}
       </div>
       <p class="services-note">
-        {subscribedProviders.length} service{subscribedProviders.length > 1 ? 's' : ''} selected.
-        <a href="#/settings">Edit</a>
+        {#if subscribedProviders.length > 20}
+          Showing 20 of {subscribedProviders.length} services.
+          <a href="#/settings">Show all</a>
+        {:else}
+          {subscribedProviders.length} service{subscribedProviders.length > 1 ? 's' : ''} selected.
+          <a href="#/settings">Edit</a>
+        {/if}
       </p>
     {/if}
   </section>
