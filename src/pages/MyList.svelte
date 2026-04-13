@@ -50,9 +50,12 @@
 
 <style>
   .page {
+    width: 100%;
     max-width: 1200px;
     margin: 0 auto;
     padding: 1.5rem 1rem 3rem;
+    box-sizing: border-box;
+    overflow-x: hidden;
   }
 
   .page-header {
