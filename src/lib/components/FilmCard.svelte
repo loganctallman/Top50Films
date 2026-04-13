@@ -14,6 +14,7 @@
   const dispatch = createEventDispatcher()
 
   const POSTER_BASE = 'https://image.tmdb.org/t/p/w342'
+  const TMDB_BASE = 'https://www.themoviedb.org/movie/'
 
   $: providers = film.watch_providers || []
   $: rating = film.vote_average ? film.vote_average.toFixed(1) : null
@@ -44,7 +45,14 @@
 
   <!-- Body -->
   <div class="card-body">
-    <h3 class="card-title" title={film.title}>{film.title}</h3>
+    <h3 class="card-title">
+      <a
+        href="{TMDB_BASE}{film.tmdb_id}"
+        target="_blank"
+        rel="noopener noreferrer"
+        title={film.title}
+      >{film.title}</a>
+    </h3>
 
     {#if film.year}
       <span class="year">{film.year}</span>
@@ -187,6 +195,15 @@
     -webkit-box-orient: vertical;
     line-height: 1.3;
     min-height: calc(0.875rem * 1.3 * 2);
+  }
+
+  .card-title a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .card-title a:hover {
+    color: var(--accent);
   }
 
   .year {
