@@ -80,23 +80,18 @@
                       subscribed={!!$streamingPrefs[provider.provider_id]}
                     />
                   {/each}
-                  {#if extraCount > 0}
-                    <button class="see-more-btn" on:click={() => toggle(notif.id)}>
-                      Show less ▲
-                    </button>
-                  {/if}
                 {:else}
                   <StreamingBadge
                     provider={notif.provider}
                     subscribed={true}
                   />
-                  {#if extraCount > 0}
-                    <button class="see-more-btn" on:click={() => toggle(notif.id)}>
-                      +{extraCount} more ▾
-                    </button>
-                  {/if}
                 {/if}
               </div>
+              {#if extraCount > 0}
+                <button class="see-more-btn" on:click={() => toggle(notif.id)}>
+                  {isExpanded ? 'Show less ▲' : `+${extraCount} more ▾`}
+                </button>
+              {/if}
             </div>
           </div>
 
