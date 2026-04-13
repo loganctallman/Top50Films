@@ -106,7 +106,7 @@
                 {:else}
                   <StreamingBadge
                     provider={notif.provider}
-                    subscribed={true}
+                    subscribed={!!$streamingPrefs[notif.provider.provider_id]}
                   />
                 {/if}
               </div>
