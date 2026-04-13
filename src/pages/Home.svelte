@@ -47,6 +47,17 @@
     } finally {
       loadingSuggestions = false
     }
+
+    // Fetch streaming providers for each suggestion in parallel
+    if (suggestions.length > 0) {
+      const results = await Promise.allSettled(suggestions.map(f => apiService.movie(f.tmdb_id)))
+      suggestions = suggestions.map((film, i) => ({
+        ...film,
+        watch_providers: results[i].status === 'fulfilled'
+          ? (results[i].value.watch_providers || [])
+          : []
+      }))
+    }
   })
 
   function handleAddSuggestion(e) {
