@@ -92,13 +92,22 @@
 
     {#if allProviders.length > 0 && !loadingProviders && !providersError}
       <div class="provider-search-wrap">
-        <input
-          class="provider-search"
-          type="search"
-          placeholder="Search services…"
-          bind:value={providerSearch}
-          aria-label="Search streaming services"
-        />
+        <div class="provider-search-row">
+          <input
+            class="provider-search"
+            type="text"
+            placeholder="Search services…"
+            bind:value={providerSearch}
+            aria-label="Search streaming services"
+          />
+          {#if providerSearch}
+            <button
+              class="clear-search-btn"
+              on:click={() => providerSearch = ''}
+              aria-label="Clear search"
+            >Clear Search</button>
+          {/if}
+        </div>
         {#if providerSearch && filteredProviders.length === 0}
           <p class="provider-search-empty">No services match "{providerSearch}"</p>
         {/if}
@@ -266,8 +275,14 @@
     margin-bottom: 1rem;
   }
 
+  .provider-search-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
   .provider-search {
-    width: 100%;
+    flex: 1;
     min-width: 0;
     padding: 0.55rem 0.875rem;
     background: var(--bg);
@@ -280,8 +295,29 @@
     box-sizing: border-box;
   }
 
+  /* suppress browser native clear button */
+  .provider-search::-webkit-search-cancel-button { display: none; }
+
   .provider-search:focus { border-color: var(--accent); }
   .provider-search::placeholder { color: var(--text-muted); }
+
+  .clear-search-btn {
+    flex-shrink: 0;
+    padding: 0.45rem 0.75rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .clear-search-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 
   .provider-search-empty {
     font-size: 0.8125rem;
