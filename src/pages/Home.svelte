@@ -1,25 +1,37 @@
 <script>
   import { onMount } from 'svelte'
-  import { push } from 'svelte-spa-router'
-  import { favorites, streamingPrefs, streamingCache, notifications } from '../lib/stores.js'
+  import { favorites, streamingPrefs, notifications, providerList } from '../lib/stores.js'
   import { apiService } from '../lib/services/apiService.js'
   import { aggregateGenreIds } from '../lib/logic/suggestionLogic.js'
   import { addFavorite, isDuplicate } from '../lib/logic/favoritesLogic.js'
   import FilmCard from '../lib/components/FilmCard.svelte'
   import SkeletonCard from '../lib/components/SkeletonCard.svelte'
+  import StreamingBadge from '../lib/components/StreamingBadge.svelte'
 
-  const LOGO_BASE = 'https://image.tmdb.org/t/p/original'
   const POSTER_BASE = 'https://image.tmdb.org/t/p/w92'
+  const LOGO_BASE = 'https://image.tmdb.org/t/p/original'
   const TMDB_BASE = 'https://www.themoviedb.org/movie/'
 
   let suggestions = []
   let loadingSuggestions = true
   let suggestionsError = false
 
+  // Per-notification expand state for "Now Streaming"
+  let streamingExpanded = {}
+
+  function toggleStreamingExpand(id) {
+    streamingExpanded = { ...streamingExpanded, [id]: !streamingExpanded[id] }
+  }
+
   $: topNotifications = $notifications.slice(0, 10)
-  $: subscribedServices = Object.entries($streamingPrefs)
+
+  // Build provider lookup map from the shared store
+  $: providerMap = Object.fromEntries($providerList.map(p => [p.provider_id, p]))
+
+  $: subscribedProviders = Object.entries($streamingPrefs)
     .filter(([, v]) => v)
-    .map(([id]) => Number(id))
+    .map(([id]) => providerMap[Number(id)])
+    .filter(Boolean)
 
   onMount(async () => {
     const genreIds = aggregateGenreIds($favorites)
@@ -29,7 +41,6 @@
     }
     try {
       const data = await apiService.suggestions(genreIds)
-      // Exclude already-favorited films
       suggestions = (data.results || []).filter(f => !isDuplicate($favorites, f.tmdb_id))
     } catch {
       suggestionsError = true
@@ -55,15 +66,15 @@
 
     {#if topNotifications.length === 0}
       <p class="module-empty">
-        {#if subscribedServices.length === 0}
-          <a href="#/settings">Add streaming services</a> to see what's available.
-        {:else}
-          None of your favorites are streaming on your selected services right now.
-        {/if}
+        None of your favorites are streaming anywhere right now.
+        <a href="#/add">Add more favorites</a> or check back later.
       </p>
     {:else}
       <ul class="streaming-list" role="list">
         {#each topNotifications as notif (notif.id)}
+          {@const allProviders = notif.providers || [notif.provider]}
+          {@const extraCount = allProviders.length - 1}
+          {@const isExpanded = !!streamingExpanded[notif.id]}
           <li class="streaming-item">
             {#if notif.film.poster_path}
               <img
@@ -81,11 +92,30 @@
                   {notif.film.title}
                 </a>
               </p>
-              <div class="s-service">
-                {#if notif.provider.logo_path}
-                  <img src="{LOGO_BASE}{notif.provider.logo_path}" alt="" class="s-service-logo" />
+              <div class="s-badges-row">
+                {#if isExpanded}
+                  {#each allProviders as provider (provider.provider_id)}
+                    <StreamingBadge
+                      {provider}
+                      subscribed={!!$streamingPrefs[provider.provider_id]}
+                    />
+                  {/each}
+                  {#if extraCount > 0}
+                    <button class="s-expand-btn" on:click={() => toggleStreamingExpand(notif.id)}>
+                      Show less ▲
+                    </button>
+                  {/if}
+                {:else}
+                  <StreamingBadge
+                    provider={notif.provider}
+                    subscribed={!!$streamingPrefs[notif.provider.provider_id]}
+                  />
+                  {#if extraCount > 0}
+                    <button class="s-expand-btn" on:click={() => toggleStreamingExpand(notif.id)}>
+                      +{extraCount} more ▾
+                    </button>
+                  {/if}
                 {/if}
-                <span class="s-service-name">{notif.provider.provider_name}</span>
               </div>
             </div>
           </li>
@@ -101,18 +131,27 @@
       <a href="#/settings" class="see-all">Edit →</a>
     </div>
 
-    {#if subscribedServices.length === 0}
+    {#if subscribedProviders.length === 0}
       <p class="module-empty">
         No services selected. <a href="#/settings">Go to Settings</a> to add them.
       </p>
     {:else}
       <div class="services-row">
-        {#each subscribedServices as id}
-          <span class="service-chip">{id}</span>
+        {#each subscribedProviders as provider (provider.provider_id)}
+          <div class="service-chip">
+            {#if provider.logo_path}
+              <img
+                src="{LOGO_BASE}{provider.logo_path}"
+                alt={provider.provider_name}
+                class="service-chip-logo"
+              />
+            {/if}
+            <span>{provider.provider_name}</span>
+          </div>
         {/each}
       </div>
       <p class="services-note">
-        Showing streaming matches from {subscribedServices.length} service{subscribedServices.length > 1 ? 's' : ''}.
+        {subscribedProviders.length} service{subscribedProviders.length > 1 ? 's' : ''} selected.
         <a href="#/settings">Edit</a>
       </p>
     {/if}
@@ -242,7 +281,7 @@
   .s-title {
     font-size: 0.875rem;
     font-weight: 600;
-    margin: 0 0 0.2rem;
+    margin: 0 0 0.3rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -252,24 +291,26 @@
   .s-title a { color: inherit; text-decoration: none; }
   .s-title a:hover { color: var(--accent); }
 
-  .s-service {
+  .s-badges-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
   }
 
-  .s-service-logo {
-    width: 16px;
-    height: 16px;
-    border-radius: 3px;
-    object-fit: cover;
+  .s-expand-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s;
+    line-height: 1;
   }
 
-  .s-service-name {
-    font-size: 0.75rem;
-    color: var(--success);
-    font-weight: 600;
-  }
+  .s-expand-btn:hover { color: var(--accent); }
 
   /* My Services */
   .services-row {
@@ -280,12 +321,23 @@
   }
 
   .service-chip {
-    padding: 4px 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px 4px 6px;
     background: var(--surface-elevated);
     border: 1px solid var(--border);
     border-radius: 999px;
     font-size: 0.8rem;
     color: var(--text-secondary);
+  }
+
+  .service-chip-logo {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
   }
 
   .services-note {

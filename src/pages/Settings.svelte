@@ -2,7 +2,7 @@
   import { onMount } from 'svelte'
   import { storageService } from '../lib/services/storageService.js'
   import { apiService } from '../lib/services/apiService.js'
-  import { streamingPrefs, onboardingComplete } from '../lib/stores.js'
+  import { streamingPrefs, onboardingComplete, providerList } from '../lib/stores.js'
 
   const LOGO_BASE = 'https://image.tmdb.org/t/p/original'
 
@@ -16,6 +16,7 @@
     try {
       const data = await apiService.providers()
       allProviders = data.results || []
+      providerList.set(allProviders)
     } catch {
       providersError = 'network'
     } finally {

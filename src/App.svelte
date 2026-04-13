@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte'
+  import { get } from 'svelte/store'
   import Router from 'svelte-spa-router'
 
   import NavBar from './lib/components/NavBar.svelte'
@@ -15,10 +16,10 @@
 
   import {
     favorites,
-    streamingPrefs,
     streamingCache,
     onboardingComplete,
-    notifications
+    notifications,
+    providerList
   } from './lib/stores.js'
   import { apiService } from './lib/services/apiService.js'
   import { getExpiredOrMissingIds, setCacheEntry } from './lib/logic/cacheLogic.js'
@@ -35,27 +36,31 @@
 
   let appReady = false
 
+  // Fetch streaming data for any favorites missing from (or expired in) cache
+  async function refreshStaleCache(favs) {
+    const staleIds = getExpiredOrMissingIds(favs, get(streamingCache))
+    if (staleIds.length === 0) return
+    const results = await Promise.allSettled(staleIds.map(id => apiService.movie(id)))
+    results.forEach((result, i) => {
+      if (result.status === 'fulfilled') {
+        const providers = result.value.watch_providers || []
+        streamingCache.update(cache => setCacheEntry(cache, staleIds[i], providers))
+      }
+    })
+  }
+
+  // Re-run cache refresh whenever favorites changes (e.g. user adds a new film)
+  $: refreshStaleCache($favorites)
+
+  // Keep notifications in sync with favorites + cache — updates immediately on any change
+  $: notifications.set(generateNotifications($favorites, $streamingCache))
+
   onMount(async () => {
-    // Refresh expired/missing streaming cache entries for favorited films
-    const staleIds = getExpiredOrMissingIds($favorites, $streamingCache)
-
-    if (staleIds.length > 0) {
-      const results = await Promise.allSettled(staleIds.map(id => apiService.movie(id)))
-
-      results.forEach((result, i) => {
-        if (result.status === 'fulfilled') {
-          const providers = result.value.watch_providers || []
-          streamingCache.update(cache => setCacheEntry(cache, staleIds[i], providers))
-        }
-      })
-    }
-
-    // Generate in-memory notifications from refreshed cache
-    // All favorited films with any streaming availability are shown;
-    // subscribed services are highlighted in the UI via streamingPrefs
-    notifications.set(
-      generateNotifications($favorites, $streamingCache)
-    )
+    // Load provider list for logos in Home/Settings
+    try {
+      const data = await apiService.providers()
+      providerList.set(data.results || [])
+    } catch { /* non-critical, Home degrades gracefully */ }
 
     appReady = true
   })
