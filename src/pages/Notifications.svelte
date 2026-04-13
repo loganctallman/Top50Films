@@ -1,5 +1,6 @@
 <script>
-  import { notifications, streamingPrefs } from '../lib/stores.js'
+  import { notifications, streamingPrefs, favorites } from '../lib/stores.js'
+  import { removeFavorite } from '../lib/logic/favoritesLogic.js'
   import StreamingBadge from '../lib/components/StreamingBadge.svelte'
 
   const POSTER_BASE = 'https://image.tmdb.org/t/p/w92'
@@ -12,8 +13,10 @@
     expanded = { ...expanded, [id]: !expanded[id] }
   }
 
-  function dismiss(id) {
-    notifications.update(all => all.filter(n => n.id !== id))
+  // "Watched" removes the film from favorites entirely (and clears the notification)
+  function markWatched(notif) {
+    favorites.set(removeFavorite($favorites, notif.film.tmdb_id))
+    notifications.update(all => all.filter(n => n.id !== notif.id))
   }
 </script>
 
@@ -26,11 +29,8 @@
   {#if $notifications.length === 0}
     <div class="empty-state">
       <p class="empty-icon">🔔</p>
-      {#if Object.keys($streamingPrefs).filter(k => $streamingPrefs[k]).length === 0}
-        <p>No streaming services selected. <a href="#/settings">Go to Settings</a> to pick your services.</p>
-      {:else}
-        <p>None of your favorites are currently streaming on your selected services.</p>
-      {/if}
+      <p>None of your favorites are currently available on any streaming service.</p>
+      <p class="empty-sub">Check back later — availability updates daily.</p>
     </div>
   {:else}
     <ul class="notification-list" role="list">
@@ -110,9 +110,9 @@
             >↗</a>
             <button
               class="dismiss-btn"
-              on:click={() => dismiss(notif.id)}
-              aria-label="Remove notification for {notif.film.title}"
-            >Remove</button>
+              on:click={() => markWatched(notif)}
+              aria-label="Mark {notif.film.title} as watched and remove from list"
+            >Watched</button>
           </div>
         </li>
       {/each}
@@ -297,6 +297,12 @@
   }
 
   .empty-icon { font-size: 3rem; margin: 0; }
+
+  .empty-sub {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 0;
+  }
 
   .empty-state a { color: var(--accent); }
 </style>

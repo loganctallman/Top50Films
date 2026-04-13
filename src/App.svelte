@@ -51,8 +51,10 @@
     }
 
     // Generate in-memory notifications from refreshed cache
+    // All favorited films with any streaming availability are shown;
+    // subscribed services are highlighted in the UI via streamingPrefs
     notifications.set(
-      generateNotifications($favorites, $streamingCache, $streamingPrefs)
+      generateNotifications($favorites, $streamingCache)
     )
 
     appReady = true

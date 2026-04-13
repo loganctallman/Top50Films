@@ -1,30 +1,27 @@
 /**
- * Generates notification entries for favorites that are available on
- * a streaming service the user subscribes to.
+ * Generates notification entries for ALL favorited films that have any
+ * streaming availability, regardless of the user's service subscriptions.
  *
- * Returns one notification per film (the first matching subscribed provider).
+ * Subscribed services are still highlighted in the UI via streamingPrefs,
+ * but do not filter which films appear.
  *
  * @param {Array}  favorites      - tmdb_favorites array
  * @param {Object} streamingCache - keyed by tmdb_id
- * @param {Object} streamingPrefs - { [provider_id]: true }
  * @returns {Array} notifications
  */
-export function generateNotifications(favorites, streamingCache, streamingPrefs) {
+export function generateNotifications(favorites, streamingCache) {
   const notifications = []
 
   for (const film of favorites) {
     const entry = streamingCache[film.tmdb_id]
-    if (!entry || !Array.isArray(entry.providers)) continue
+    if (!entry || !Array.isArray(entry.providers) || entry.providers.length === 0) continue
 
-    const matchedProvider = entry.providers.find(p => streamingPrefs[p.provider_id])
-    if (matchedProvider) {
-      notifications.push({
-        id: `${film.tmdb_id}-${matchedProvider.provider_id}`,
-        film,
-        provider: matchedProvider,   // primary matched (subscribed) service
-        providers: entry.providers   // all available providers for the film
-      })
-    }
+    notifications.push({
+      id: String(film.tmdb_id),
+      film,
+      provider: entry.providers[0],  // first provider shown by default
+      providers: entry.providers      // all providers for expand/collapse
+    })
   }
 
   return notifications
