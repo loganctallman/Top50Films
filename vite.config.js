@@ -40,9 +40,8 @@ export default defineConfig({
         ]
       },
       workbox: {
+        cacheId: 'top50-v2',
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-        navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: []
       }
     })
