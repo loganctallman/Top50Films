@@ -25,13 +25,16 @@
   ]
 
   let selectedGenre = GENRES[0]
+  const INITIAL_DISPLAY = 24
+
   let films = []
+  let clientBuffer = []        // fetched but not yet shown
   let loadingFilms = false
   let loadingProviders = false
   let loadingMore = false
   let filmsError = null
   let currentPage = 1
-  let hasMorePages = false
+  let hasMoreServerPages = false
 
   let searchQuery = ''
   let searchDebounce
@@ -58,17 +61,33 @@
     selectedGenre = genre
     searchQuery = ''
     films = []
+    clientBuffer = []
     providerMap = {}
     filmsError = null
     loadingFilms = true
-    currentPage = 1
-    hasMorePages = false
+    currentPage = 0
+    hasMoreServerPages = false
 
     try {
-      const data = await apiService.genreTop50(genre.id, 1)
-      films = data.results || []
-      hasMorePages = films.length === 20
-      if (films.length === 0) filmsError = 'no-results'
+      const [res1, res2] = await Promise.allSettled([
+        apiService.genreTop50(genre.id, 1),
+        apiService.genreTop50(genre.id, 2)
+      ])
+      const page1 = res1.status === 'fulfilled' ? (res1.value.results || []) : []
+      const page2 = res2.status === 'fulfilled' ? (res2.value.results || []) : []
+      const all = [...page1, ...page2]
+
+      currentPage = res2.status === 'fulfilled' ? 2 : 1
+      hasMoreServerPages = res2.status === 'fulfilled'
+        ? page2.length === 20
+        : page1.length === 20
+
+      if (all.length === 0) {
+        filmsError = 'no-results'
+      } else {
+        films = all.slice(0, INITIAL_DISPLAY)
+        clientBuffer = all.slice(INITIAL_DISPLAY)
+      }
     } catch {
       filmsError = 'network'
     } finally {
@@ -81,15 +100,26 @@
   async function loadMoreGenre() {
     if (loadingMore) return
     loadingMore = true
-    const nextPage = currentPage + 1
 
+    if (clientBuffer.length > 0) {
+      const toShow = clientBuffer.slice(0, INITIAL_DISPLAY)
+      clientBuffer = clientBuffer.slice(INITIAL_DISPLAY)
+      films = [...films, ...toShow]
+      fetchProvidersForFilms(toShow)
+      loadingMore = false
+      return
+    }
+
+    const nextPage = currentPage + 1
     try {
       const data = await apiService.genreTop50(selectedGenre.id, nextPage)
       const newFilms = data.results || []
       currentPage = nextPage
-      hasMorePages = newFilms.length === 20
-      films = [...films, ...newFilms]
-      fetchProvidersForFilms(newFilms)
+      hasMoreServerPages = newFilms.length === 20
+      const toShow = newFilms.slice(0, INITIAL_DISPLAY)
+      clientBuffer = newFilms.slice(INITIAL_DISPLAY)
+      films = [...films, ...toShow]
+      if (toShow.length > 0) fetchProvidersForFilms(toShow)
     } catch {
       // silently fail — existing results stay
     } finally {
@@ -123,17 +153,33 @@
 
   async function runSearch(query) {
     films = []
+    clientBuffer = []
     providerMap = {}
     searchError = null
     isSearching = true
-    searchPage = 1
+    searchPage = 0
     hasMoreSearchPages = false
 
     try {
-      const data = await apiService.search(query, 1)
-      films = data.results || []
-      hasMoreSearchPages = films.length === 20
-      if (films.length === 0) searchError = 'no-results'
+      const [res1, res2] = await Promise.allSettled([
+        apiService.search(query, 1),
+        apiService.search(query, 2)
+      ])
+      const page1 = res1.status === 'fulfilled' ? (res1.value.results || []) : []
+      const page2 = res2.status === 'fulfilled' ? (res2.value.results || []) : []
+      const all = [...page1, ...page2]
+
+      searchPage = res2.status === 'fulfilled' ? 2 : 1
+      hasMoreSearchPages = res2.status === 'fulfilled'
+        ? page2.length === 20
+        : page1.length === 20
+
+      if (all.length === 0) {
+        searchError = 'no-results'
+      } else {
+        films = all.slice(0, INITIAL_DISPLAY)
+        clientBuffer = all.slice(INITIAL_DISPLAY)
+      }
     } catch {
       searchError = 'network'
     } finally {
@@ -146,15 +192,26 @@
   async function loadMoreSearch() {
     if (loadingMore) return
     loadingMore = true
-    const nextPage = searchPage + 1
 
+    if (clientBuffer.length > 0) {
+      const toShow = clientBuffer.slice(0, INITIAL_DISPLAY)
+      clientBuffer = clientBuffer.slice(INITIAL_DISPLAY)
+      films = [...films, ...toShow]
+      fetchProvidersForFilms(toShow)
+      loadingMore = false
+      return
+    }
+
+    const nextPage = searchPage + 1
     try {
       const data = await apiService.search(searchQuery, nextPage)
       const newFilms = data.results || []
       searchPage = nextPage
       hasMoreSearchPages = newFilms.length === 20
-      films = [...films, ...newFilms]
-      fetchProvidersForFilms(newFilms)
+      const toShow = newFilms.slice(0, INITIAL_DISPLAY)
+      clientBuffer = newFilms.slice(INITIAL_DISPLAY)
+      films = [...films, ...toShow]
+      if (toShow.length > 0) fetchProvidersForFilms(toShow)
     } catch {
       // silently fail
     } finally {
@@ -190,7 +247,11 @@
 
   $: displayError = searchQuery.trim() ? searchError : filmsError
   $: loading = loadingFilms || isSearching
-  $: showLoadMore = !loading && !displayError && (searchQuery.trim() ? hasMoreSearchPages : hasMorePages)
+  $: showLoadMore = !loading && !displayError && (
+    searchQuery.trim()
+      ? (clientBuffer.length > 0 || hasMoreSearchPages)
+      : (clientBuffer.length > 0 || hasMoreServerPages)
+  )
 </script>
 
 <div class="page">
@@ -279,6 +340,12 @@
         disabled={loadingMore}
       >
         {loadingMore ? 'Loading…' : 'Load more'}
+      </button>
+      <button
+        class="back-top-btn"
+        on:click={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      >
+        ↑ Back to top
       </button>
     </div>
   {/if}
@@ -440,7 +507,26 @@
   .load-more-wrap {
     display: flex;
     justify-content: center;
+    gap: 0.75rem;
     margin-top: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .back-top-btn {
+    padding: 0.6rem 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .back-top-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
   .load-more-btn {

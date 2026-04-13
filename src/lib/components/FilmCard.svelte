@@ -186,6 +186,7 @@
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     line-height: 1.3;
+    min-height: calc(0.875rem * 1.3 * 2);
   }
 
   .year {
