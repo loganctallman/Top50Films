@@ -157,6 +157,8 @@
     border-radius: var(--radius-lg);
     padding: 0.875rem 1rem;
     transition: border-color 0.2s;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .notif-card:hover { border-color: var(--accent); }
@@ -185,6 +187,7 @@
   .notif-info {
     flex: 1;
     min-width: 0;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
