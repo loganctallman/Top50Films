@@ -25,6 +25,7 @@
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
@@ -35,12 +36,15 @@ body {
   font-size: 16px;
   line-height: 1.5;
   min-height: 100vh;
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 #app {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 a {

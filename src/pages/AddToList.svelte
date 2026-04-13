@@ -227,6 +227,7 @@
     max-width: 1200px;
     margin: 0 auto;
     padding: 1.5rem 1rem 3rem;
+    overflow-x: hidden;
   }
 
   .page-header {
