@@ -57,6 +57,8 @@
 </script>
 
 <div class="page">
+  <a href="#/add" class="search-cta">Search For Your Favorite Films</a>
+
   <!-- Module 1: Now Streaming -->
   <section class="module">
     <div class="module-header">
@@ -372,5 +374,26 @@
     .suggestion-item {
       flex: 0 0 160px;
     }
+  }
+
+  .search-cta {
+    display: block;
+    width: 100%;
+    padding: 0.875rem 1rem;
+    background: var(--accent);
+    color: #fff;
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 700;
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    transition: background 0.15s, transform 0.15s;
+    box-sizing: border-box;
+  }
+
+  .search-cta:hover {
+    background: #c73550;
+    transform: translateY(-1px);
+    text-decoration: none;
   }
 </style>
