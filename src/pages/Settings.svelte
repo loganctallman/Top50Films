@@ -197,9 +197,12 @@
 
 <style>
   .page {
+    width: 100%;
     max-width: 900px;
     margin: 0 auto;
     padding: 1.5rem 1rem 3rem;
+    box-sizing: border-box;
+    overflow-x: hidden;
   }
 
   h1 {
@@ -241,6 +244,7 @@
 
   .toggle-all-btn {
     flex-shrink: 0;
+    min-width: 10rem;
     padding: 0.35rem 0.875rem;
     background: transparent;
     border: 1px solid var(--border);
