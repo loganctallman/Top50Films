@@ -11,6 +11,11 @@
   let providersError = null
 
   let deleteStep = 0 // 0 = idle, 1 = confirming
+  let showAllProviders = false
+
+  const PROVIDER_LIMIT = 30
+  $: visibleProviders = showAllProviders ? allProviders : allProviders.slice(0, PROVIDER_LIMIT)
+  $: hasMore = allProviders.length > PROVIDER_LIMIT
 
   onMount(async () => {
     try {
@@ -69,7 +74,7 @@
       <p class="section-desc">Toggle the services you subscribe to. We'll highlight matching films in your list.</p>
       {#if allProviders.length > 0}
         <button class="toggle-all-btn" on:click={toggleAll}>
-          {allSelected ? 'Deselect All' : 'Select All'}
+          {allSelected ? 'Deselect All Services' : 'Select All Services'}
         </button>
       {/if}
     </div>
@@ -91,7 +96,7 @@
       <p class="empty-note">No providers available.</p>
     {:else}
       <div class="providers-grid">
-        {#each allProviders as provider (provider.provider_id)}
+        {#each visibleProviders as provider (provider.provider_id)}
           {@const active = !!$streamingPrefs[provider.provider_id]}
           <button
             class="provider-card"
@@ -117,6 +122,11 @@
           </button>
         {/each}
       </div>
+      {#if hasMore}
+        <button class="show-all-btn" on:click={() => showAllProviders = !showAllProviders}>
+          {showAllProviders ? 'Show less ▲' : `Show all ${allProviders.length} services ▾`}
+        </button>
+      {/if}
     {/if}
   </section>
 
@@ -211,6 +221,20 @@
     border-color: var(--accent);
     color: var(--accent);
   }
+
+  .show-all-btn {
+    display: block;
+    margin-top: 0.75rem;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+
+  .show-all-btn:hover { color: var(--accent); }
 
   .providers-grid {
     display: grid;
