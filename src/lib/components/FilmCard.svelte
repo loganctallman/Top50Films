@@ -72,7 +72,7 @@
           Show less ▲
         </button>
       {:else}
-        <div class="badges-row">
+        <div class="badges-row badges-collapsed">
           <StreamingBadge
             provider={firstProvider}
             subscribed={!!streamingPrefs[firstProvider.provider_id]}
@@ -209,6 +209,19 @@
     align-items: center;
   }
 
+  /* Collapsed state: single badge + button must share one line */
+  .badges-collapsed {
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+
+  /* Allow the badge to shrink so the "+X more" button always fits */
+  .badges-collapsed :global(.badge) {
+    min-width: 0;
+    flex-shrink: 1;
+    overflow: hidden;
+  }
+
   .see-more-btn {
     background: none;
     border: none;
@@ -242,6 +255,9 @@
     cursor: pointer;
     transition: background 0.15s, opacity 0.15s;
     width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .btn-add {
