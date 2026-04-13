@@ -26,9 +26,11 @@
 
   let selectedGenre = GENRES[0]
   const INITIAL_DISPLAY = 24
+  const LOAD_MORE_SIZE = 12
 
   let films = []
   let clientBuffer = []        // fetched but not yet shown
+  let isFetchingBuffer = false // prevent concurrent background fetches
   let loadingFilms = false
   let loadingProviders = false
   let loadingMore = false
@@ -62,6 +64,7 @@
     searchQuery = ''
     films = []
     clientBuffer = []
+    isFetchingBuffer = false
     providerMap = {}
     filmsError = null
     loadingFilms = true
@@ -95,36 +98,46 @@
     }
 
     if (films.length > 0) fetchProvidersForFilms(films)
+    prefetchGenreBuffer()
   }
 
-  async function loadMoreGenre() {
-    if (loadingMore) return
-    loadingMore = true
-
-    if (clientBuffer.length > 0) {
-      const toShow = clientBuffer.slice(0, INITIAL_DISPLAY)
-      clientBuffer = clientBuffer.slice(INITIAL_DISPLAY)
-      films = [...films, ...toShow]
-      fetchProvidersForFilms(toShow)
-      loadingMore = false
-      return
-    }
-
+  // Background: fetch next genre page into buffer if not already fetching
+  async function prefetchGenreBuffer() {
+    if (isFetchingBuffer || !hasMoreServerPages) return
+    isFetchingBuffer = true
     const nextPage = currentPage + 1
     try {
       const data = await apiService.genreTop50(selectedGenre.id, nextPage)
       const newFilms = data.results || []
       currentPage = nextPage
       hasMoreServerPages = newFilms.length === 20
-      const toShow = newFilms.slice(0, INITIAL_DISPLAY)
-      clientBuffer = newFilms.slice(INITIAL_DISPLAY)
-      films = [...films, ...toShow]
-      if (toShow.length > 0) fetchProvidersForFilms(toShow)
+      clientBuffer = [...clientBuffer, ...newFilms]
+      if (newFilms.length > 0) fetchProvidersForFilms(newFilms)
     } catch {
-      // silently fail — existing results stay
+      // silently fail — buffer stays as-is
     } finally {
-      loadingMore = false
+      isFetchingBuffer = false
     }
+  }
+
+  async function loadMoreGenre() {
+    if (loadingMore) return
+    loadingMore = true
+
+    // If buffer is unexpectedly empty, do a blocking fetch
+    if (clientBuffer.length === 0 && hasMoreServerPages) {
+      await prefetchGenreBuffer()
+    }
+
+    const toShow = clientBuffer.slice(0, LOAD_MORE_SIZE)
+    clientBuffer = clientBuffer.slice(LOAD_MORE_SIZE)
+    films = [...films, ...toShow]
+    if (toShow.length > 0) fetchProvidersForFilms(toShow)
+
+    loadingMore = false
+
+    // Refill buffer in background after every display
+    prefetchGenreBuffer()
   }
 
   async function fetchProvidersForFilms(filmList) {
@@ -154,6 +167,7 @@
   async function runSearch(query) {
     films = []
     clientBuffer = []
+    isFetchingBuffer = false
     providerMap = {}
     searchError = null
     isSearching = true
@@ -187,36 +201,46 @@
     }
 
     if (films.length > 0) fetchProvidersForFilms(films)
+    prefetchSearchBuffer()
   }
 
-  async function loadMoreSearch() {
-    if (loadingMore) return
-    loadingMore = true
-
-    if (clientBuffer.length > 0) {
-      const toShow = clientBuffer.slice(0, INITIAL_DISPLAY)
-      clientBuffer = clientBuffer.slice(INITIAL_DISPLAY)
-      films = [...films, ...toShow]
-      fetchProvidersForFilms(toShow)
-      loadingMore = false
-      return
-    }
-
+  // Background: fetch next search page into buffer if not already fetching
+  async function prefetchSearchBuffer() {
+    if (isFetchingBuffer || !hasMoreSearchPages) return
+    isFetchingBuffer = true
     const nextPage = searchPage + 1
     try {
       const data = await apiService.search(searchQuery, nextPage)
       const newFilms = data.results || []
       searchPage = nextPage
       hasMoreSearchPages = newFilms.length === 20
-      const toShow = newFilms.slice(0, INITIAL_DISPLAY)
-      clientBuffer = newFilms.slice(INITIAL_DISPLAY)
-      films = [...films, ...toShow]
-      if (toShow.length > 0) fetchProvidersForFilms(toShow)
+      clientBuffer = [...clientBuffer, ...newFilms]
+      if (newFilms.length > 0) fetchProvidersForFilms(newFilms)
     } catch {
       // silently fail
     } finally {
-      loadingMore = false
+      isFetchingBuffer = false
     }
+  }
+
+  async function loadMoreSearch() {
+    if (loadingMore) return
+    loadingMore = true
+
+    // If buffer is unexpectedly empty, do a blocking fetch
+    if (clientBuffer.length === 0 && hasMoreSearchPages) {
+      await prefetchSearchBuffer()
+    }
+
+    const toShow = clientBuffer.slice(0, LOAD_MORE_SIZE)
+    clientBuffer = clientBuffer.slice(LOAD_MORE_SIZE)
+    films = [...films, ...toShow]
+    if (toShow.length > 0) fetchProvidersForFilms(toShow)
+
+    loadingMore = false
+
+    // Refill buffer in background after every display
+    prefetchSearchBuffer()
   }
 
   function handleAdd(e) {
