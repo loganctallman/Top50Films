@@ -375,6 +375,11 @@
     padding-bottom: 0.25rem;
   }
 
+  /* stretch film-card to fill item height in both grid and flex contexts */
+  .suggestion-item {
+    display: flex;
+  }
+
   @media (min-width: 600px) {
     .suggestions-scroll {
       display: flex;
