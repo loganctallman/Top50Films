@@ -335,6 +335,13 @@
     gap: 0.625rem;
   }
 
+  /* Force 8 columns on desktop so 32 providers fills exactly 4 rows */
+  @media (min-width: 860px) {
+    .providers-grid {
+      grid-template-columns: repeat(8, 1fr);
+    }
+  }
+
   .provider-card {
     position: relative;
     display: flex;
