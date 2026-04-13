@@ -194,9 +194,12 @@
 
 <style>
   .page {
+    width: 100%;
     max-width: 1000px;
     margin: 0 auto;
     padding: 1.5rem 1rem 3rem;
+    overflow-x: hidden;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: 2rem;
@@ -256,6 +259,8 @@
     padding: 0.5rem;
     border-radius: var(--radius);
     transition: background 0.15s;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .streaming-item:hover { background: var(--surface-elevated); }
@@ -276,7 +281,7 @@
     font-size: 1.25rem;
   }
 
-  .s-info { flex: 1; min-width: 0; }
+  .s-info { flex: 1; min-width: 0; overflow: hidden; }
 
   .s-title {
     font-size: 0.875rem;
