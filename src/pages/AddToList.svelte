@@ -47,11 +47,22 @@
 
   // Person / Director / Actor search
   let searchMode = 'film' // 'film' | 'person'
+  let modeOpen = false
   let personResults = []
   let selectedPerson = null
   let personSearching = false
   let personError = null
   let personDebounce
+
+  function selectMode(mode) {
+    searchMode = mode
+    modeOpen = false
+    handleModeChange()
+  }
+
+  function handleWindowClick(e) {
+    if (!e.target.closest('.mode-dropdown-wrap')) modeOpen = false
+  }
 
   // Per-film provider loading map
   let providerMap = {}
@@ -383,6 +394,8 @@
   )
 </script>
 
+<svelte:window on:click={handleWindowClick} />
+
 <div class="page">
   <!-- Header row -->
   <div class="page-header">
@@ -394,17 +407,38 @@
 
   <!-- Search bar -->
   <div class="search-wrap">
-    <div class="mode-select-wrap">
-      <select
-        class="mode-select"
-        bind:value={searchMode}
-        on:change={handleModeChange}
-        aria-label="Search mode"
+    <div class="mode-dropdown-wrap">
+      <button
+        class="mode-btn"
+        on:click|stopPropagation={() => modeOpen = !modeOpen}
+        aria-haspopup="listbox"
+        aria-expanded={modeOpen}
       >
-        <option value="film">Film</option>
-        <option value="person">Director / Actor</option>
-      </select>
-      <span class="mode-arrow" aria-hidden="true">▾</span>
+        {searchMode === 'film' ? 'Film' : 'Director / Actor'}
+        <span class="mode-arrow" aria-hidden="true">▾</span>
+      </button>
+      {#if modeOpen}
+        <ul class="mode-options" role="listbox">
+          <li>
+            <button
+              class="mode-option"
+              class:selected={searchMode === 'film'}
+              role="option"
+              aria-selected={searchMode === 'film'}
+              on:click={() => selectMode('film')}
+            >Film</button>
+          </li>
+          <li>
+            <button
+              class="mode-option"
+              class:selected={searchMode === 'person'}
+              role="option"
+              aria-selected={searchMode === 'person'}
+              on:click={() => selectMode('person')}
+            >Director / Actor</button>
+          </li>
+        </ul>
+      {/if}
     </div>
     <input
       class="search-input"
@@ -580,17 +614,16 @@
     align-items: stretch;
   }
 
-  .mode-select-wrap {
+  .mode-dropdown-wrap {
     position: relative;
     flex-shrink: 0;
-    display: flex;
-    align-items: center;
   }
 
-  .mode-select {
-    appearance: none;
-    -webkit-appearance: none;
-    padding: 0 2rem 0 0.75rem;
+  .mode-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0 0.875rem;
     height: 100%;
     background: var(--surface-elevated);
     border: 1px solid var(--border);
@@ -598,20 +631,61 @@
     border-radius: var(--radius) 0 0 var(--radius);
     color: var(--text-secondary);
     font-size: 0.8rem;
+    font-weight: 500;
     cursor: pointer;
-    outline: none;
-    transition: border-color 0.15s, color 0.15s;
     white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
   }
 
-  .mode-select:focus { border-color: var(--accent); color: var(--text-primary); }
+  .mode-btn:hover,
+  .mode-btn:focus {
+    border-color: var(--accent);
+    color: var(--text-primary);
+    outline: none;
+  }
 
   .mode-arrow {
-    position: absolute;
-    right: 0.5rem;
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     color: var(--text-muted);
-    pointer-events: none;
+  }
+
+  .mode-options {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    min-width: 160px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    list-style: none;
+    padding: 0.25rem;
+    margin: 0;
+    z-index: 100;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  }
+
+  .mode-option {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: none;
+    border: none;
+    border-radius: calc(var(--radius) - 2px);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+  }
+
+  .mode-option:hover {
+    background: var(--surface);
+    color: var(--text-primary);
+  }
+
+  .mode-option.selected {
+    color: var(--accent);
+    font-weight: 600;
   }
 
   .search-input {
