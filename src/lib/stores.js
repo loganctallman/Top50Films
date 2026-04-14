@@ -18,3 +18,4 @@ export const onboardingComplete = localStore(STORAGE_KEYS.ONBOARDING_COMPLETE, f
 // In-memory only — regenerated on each app open from cache + favorites + prefs
 export const notifications = writable([])
 export const providerList = writable([])
+export const installPrompt = writable(null) // deferred beforeinstallprompt event

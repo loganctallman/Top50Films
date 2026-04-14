@@ -2,7 +2,7 @@
   import { onMount } from 'svelte'
   import { storageService } from '../lib/services/storageService.js'
   import { apiService } from '../lib/services/apiService.js'
-  import { streamingPrefs, onboardingComplete, providerList } from '../lib/stores.js'
+  import { streamingPrefs, onboardingComplete, providerList, installPrompt } from '../lib/stores.js'
 
   const LOGO_BASE = 'https://image.tmdb.org/t/p/original'
 
@@ -15,25 +15,14 @@
   let providerSearch = ''
 
   // PWA install prompt
-  let installPrompt = null
   let justInstalled = false
 
-  function handleBeforeInstallPrompt(e) {
-    e.preventDefault()
-    installPrompt = e
-  }
-
-  function handleAppInstalled() {
-    installPrompt = null
-    justInstalled = true
-  }
-
   async function installApp() {
-    if (!installPrompt) return
-    installPrompt.prompt()
-    const { outcome } = await installPrompt.userChoice
+    if (!$installPrompt) return
+    $installPrompt.prompt()
+    const { outcome } = await $installPrompt.userChoice
     if (outcome === 'accepted') {
-      installPrompt = null
+      installPrompt.set(null)
       justInstalled = true
     }
   }
@@ -63,12 +52,6 @@
       loadingProviders = false
     }
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-    window.addEventListener('appinstalled', handleAppInstalled)
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-      window.removeEventListener('appinstalled', handleAppInstalled)
-    }
   })
 
   function toggleProvider(id) {
@@ -226,7 +209,7 @@
   </section>
 
   <!-- Install App -->
-  {#if installPrompt || justInstalled}
+  {#if $installPrompt || justInstalled}
     <section class="section install-section">
       <h2>Install App</h2>
       {#if justInstalled}

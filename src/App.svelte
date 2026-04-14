@@ -19,7 +19,8 @@
     streamingCache,
     onboardingComplete,
     notifications,
-    providerList
+    providerList,
+    installPrompt
   } from './lib/stores.js'
   import { apiService } from './lib/services/apiService.js'
   import { getExpiredOrMissingIds, setCacheEntry } from './lib/logic/cacheLogic.js'
@@ -35,6 +36,17 @@
   }
 
   let appReady = false
+
+  // Capture install prompt as early as possible — before any page mounts
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault()
+      installPrompt.set(e)
+    })
+    window.addEventListener('appinstalled', () => {
+      installPrompt.set(null)
+    })
+  }
 
   // Fetch streaming data for any favorites missing from (or expired in) cache
   async function refreshStaleCache(favs) {
