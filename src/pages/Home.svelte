@@ -110,12 +110,14 @@
                   {#each allProviders as provider (provider.provider_id)}
                     <StreamingBadge
                       {provider}
+                      filmId={notif.film.tmdb_id}
                       subscribed={!!$streamingPrefs[provider.provider_id]}
                     />
                   {/each}
                 {:else}
                   <StreamingBadge
                     provider={notif.provider}
+                    filmId={notif.film.tmdb_id}
                     subscribed={!!$streamingPrefs[notif.provider.provider_id]}
                   />
                 {/if}

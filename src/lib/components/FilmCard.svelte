@@ -72,6 +72,7 @@
           {#each providers as provider (provider.provider_id)}
             <StreamingBadge
               {provider}
+              filmId={film.tmdb_id}
               subscribed={!!streamingPrefs[provider.provider_id]}
             />
           {/each}
