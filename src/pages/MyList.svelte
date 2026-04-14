@@ -148,7 +148,7 @@
     transition: background 0.15s;
   }
 
-  .confirm-yes:hover { background: #c73550; }
+  .confirm-yes:hover { background: var(--accent-dark); }
 
   .confirm-cancel {
     padding: 0.35rem 0.75rem;
@@ -178,7 +178,7 @@
     transition: background 0.15s;
   }
 
-  .add-more-btn:hover { background: #c73550; }
+  .add-more-btn:hover { background: var(--accent-dark); }
 
   .grid {
     display: grid;
@@ -214,5 +214,5 @@
     transition: background 0.15s;
   }
 
-  .btn-primary:hover { background: #c73550; }
+  .btn-primary:hover { background: var(--accent-dark); }
 </style>

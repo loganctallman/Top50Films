@@ -448,7 +448,7 @@
   }
 
   /* Danger section */
-  .danger-section { border-color: rgba(233, 69, 96, 0.3); }
+  .danger-section { border-color: rgba(201, 168, 76, 0.3); }
 
   .btn-danger-outline {
     padding: 0.6rem 1.25rem;
@@ -462,11 +462,11 @@
     transition: background 0.15s;
   }
 
-  .btn-danger-outline:hover { background: rgba(233, 69, 96, 0.1); }
+  .btn-danger-outline:hover { background: var(--accent-dim); }
 
   .confirm-box {
-    background: rgba(233, 69, 96, 0.08);
-    border: 1px solid rgba(233, 69, 96, 0.3);
+    background: var(--accent-dim);
+    border: 1px solid rgba(201, 168, 76, 0.3);
     border-radius: var(--radius);
     padding: 1rem;
     display: flex;
@@ -498,7 +498,7 @@
     transition: background 0.15s;
   }
 
-  .btn-danger:hover { background: #c73550; }
+  .btn-danger:hover { background: var(--accent-dark); }
 
   .btn-ghost {
     padding: 0.6rem 1.25rem;

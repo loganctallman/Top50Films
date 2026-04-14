@@ -269,7 +269,7 @@
     cursor: default;
   }
 
-  .btn-primary:not(:disabled):hover { background: #c73550; }
+  .btn-primary:not(:disabled):hover { background: var(--accent-dark); }
 
   .btn-ghost {
     padding: 0.55rem 1.25rem;
@@ -299,6 +299,6 @@
   }
 
   .btn-delete:hover {
-    background: rgba(233, 69, 96, 0.12);
+    background: var(--accent-dim);
   }
 </style>

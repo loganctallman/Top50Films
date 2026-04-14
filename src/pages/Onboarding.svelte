@@ -224,7 +224,7 @@
     transition: background 0.15s;
   }
 
-  .btn-primary:hover { background: #c73550; }
+  .btn-primary:hover { background: var(--accent-dark); }
 
   .btn-ghost {
     width: 100%;

@@ -1,20 +1,21 @@
-/* v2 */
+/* v3 — gold theme */
 :root {
-  --bg:               #0f0f1a;
-  --surface:          #1a1a2e;
-  --surface-elevated: #16213e;
-  --border:           #2a2a4a;
-  --accent:           #e94560;
-  --accent-dim:       rgba(233, 69, 96, 0.15);
-  --text-primary:     #eaeaea;
-  --text-secondary:   #9090a8;
-  --text-muted:       #5a5a7a;
+  --bg:               #09091a;
+  --surface:          #111126;
+  --surface-elevated: #1c1c38;
+  --border:           #28284a;
+  --accent:           #c9a84c;
+  --accent-dark:      #a8873a;
+  --accent-dim:       rgba(201, 168, 76, 0.15);
+  --text-primary:     #e8dfc8;
+  --text-secondary:   #a09070;
+  --text-muted:       #68604a;
   --success:          #4ade80;
   --success-dim:      rgba(74, 222, 128, 0.12);
-  --warning:          #fbbf24;
+  --warning:          #c9a84c;
   --radius:           8px;
   --radius-lg:        12px;
-  --shadow:           0 4px 24px rgba(0, 0, 0, 0.4);
+  --shadow:           0 4px 24px rgba(0, 0, 0, 0.5);
 }
 
 *, *::before, *::after {

@@ -81,7 +81,7 @@
   .badge.linkable:hover {
     border-color: var(--accent);
     color: var(--accent);
-    background: rgba(233, 69, 96, 0.08);
+    background: var(--accent-dim);
   }
 
   .badge.subscribed {

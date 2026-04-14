@@ -21,50 +21,70 @@
     if (e.key === 'Escape') menuOpen = false
   }
 
+  function handleWindowClick(e) {
+    if (!e.target.closest('.navbar')) menuOpen = false
+  }
+
   $: currentPath = $location
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window on:keydown={handleKeydown} on:click={handleWindowClick} />
 
 <nav class="navbar" aria-label="Main navigation">
   <div class="navbar-inner">
-    <a class="brand" href="#/" on:click|preventDefault={() => navigate('/')}>
-      🎬 My Top 50
-    </a>
 
-    <!-- Desktop nav -->
-    <ul class="nav-links desktop-only" role="list">
-      {#each navItems as item}
-        <li>
-          <a
-            href="#{item.path}"
-            class:active={currentPath === item.path}
-            on:click|preventDefault={() => navigate(item.path)}
-          >
-            {item.label}
-          </a>
-        </li>
-      {/each}
-    </ul>
-
-    <!-- Mobile hamburger -->
+    <!-- Left: hamburger -->
     <button
-      class="hamburger mobile-only"
+      class="nav-icon-btn hamburger"
       aria-label={menuOpen ? 'Close menu' : 'Open menu'}
       aria-expanded={menuOpen}
-      on:click={() => menuOpen = !menuOpen}
+      on:click|stopPropagation={() => menuOpen = !menuOpen}
     >
-      <span></span><span></span><span></span>
+      {#if menuOpen}
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <line x1="4" y1="4" x2="16" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="16" y1="4" x2="4" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      {:else}
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <line x1="3" y1="5" x2="17" y2="5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="3" y1="10" x2="17" y2="10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="3" y1="15" x2="17" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      {/if}
     </button>
+
+    <!-- Center: logo -->
+    <a
+      class="brand"
+      href="#/"
+      on:click|preventDefault={() => navigate('/')}
+      aria-label="My Top 50 — Home"
+    >
+      <img src="/cutoutlogonotext.png" alt="My Top 50" class="brand-logo" />
+    </a>
+
+    <!-- Right: search -->
+    <button
+      class="nav-icon-btn search-btn"
+      aria-label="Search films"
+      on:click={() => navigate('/add')}
+    >
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="8.5" cy="8.5" r="5" stroke="currentColor" stroke-width="2"/>
+        <line x1="12.5" y1="12.5" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+
   </div>
 
-  <!-- Mobile dropdown -->
+  <!-- Dropdown menu -->
   {#if menuOpen}
-    <div class="mobile-menu" role="menu">
+    <div class="nav-menu" role="menu">
       {#each navItems as item}
         <a
           href="#{item.path}"
-          class="mobile-menu-item"
+          class="nav-menu-item"
           class:active={currentPath === item.path}
           role="menuitem"
           on:click|preventDefault={() => navigate(item.path)}
@@ -81,107 +101,97 @@
     position: sticky;
     top: 0;
     z-index: 100;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    background: rgba(9, 9, 26, 0.88);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(201, 168, 76, 0.2);
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
   }
 
   .navbar-inner {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 1rem;
-    height: 56px;
+    height: 72px;
   }
 
+  /* Left slot */
+  .hamburger { justify-self: start; }
+
+  /* Center slot */
   .brand {
-    font-weight: 700;
-    font-size: 1.1rem;
-    color: var(--text-primary);
-    text-decoration: none;
-    letter-spacing: -0.02em;
-  }
-
-  .nav-links {
+    justify-self: center;
     display: flex;
-    gap: 0.25rem;
-    list-style: none;
-    margin: 0;
-    padding: 0;
+    align-items: center;
+    text-decoration: none;
   }
 
-  .nav-links a {
+  .brand-logo {
+    height: 54px;
+    width: auto;
     display: block;
-    padding: 0.4rem 0.75rem;
-    border-radius: var(--radius);
-    color: var(--text-secondary);
-    text-decoration: none;
-    font-size: 0.875rem;
-    transition: color 0.15s, background 0.15s;
+    /* preserve transparency */
+    filter: drop-shadow(0 2px 8px rgba(201, 168, 76, 0.25));
   }
 
-  .nav-links a:hover,
-  .nav-links a.active {
-    color: var(--text-primary);
-    background: var(--surface-elevated);
-  }
+  /* Right slot */
+  .search-btn { justify-self: end; }
 
-  .nav-links a.active {
-    color: var(--accent);
-  }
-
-  .hamburger {
+  /* Shared icon button style */
+  .nav-icon-btn {
     display: flex;
-    flex-direction: column;
-    gap: 5px;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
     background: none;
     border: none;
+    border-radius: var(--radius);
+    color: var(--text-secondary);
     cursor: pointer;
-    padding: 8px;
+    transition: color 0.15s, background 0.15s;
+    flex-shrink: 0;
   }
 
-  .hamburger span {
+  .nav-icon-btn:hover {
+    color: var(--accent);
+    background: rgba(201, 168, 76, 0.1);
+  }
+
+  /* Dropdown menu */
+  .nav-menu {
+    background: rgba(9, 9, 26, 0.97);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(201, 168, 76, 0.15);
+    border-bottom: 1px solid rgba(201, 168, 76, 0.15);
+  }
+
+  .nav-menu-item {
     display: block;
-    width: 22px;
-    height: 2px;
-    background: var(--text-primary);
-    border-radius: 2px;
-    transition: background 0.15s;
-  }
-
-  .mobile-menu {
-    display: flex;
-    flex-direction: column;
-    border-top: 1px solid var(--border);
-    background: var(--surface);
-  }
-
-  .mobile-menu-item {
-    padding: 0.875rem 1.25rem;
+    padding: 0.9rem 1.5rem;
     color: var(--text-secondary);
     text-decoration: none;
     font-size: 0.9375rem;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid rgba(201, 168, 76, 0.08);
     transition: background 0.15s, color 0.15s;
   }
 
-  .mobile-menu-item:hover,
-  .mobile-menu-item.active {
-    background: var(--surface-elevated);
+  .nav-menu-item:last-child {
+    border-bottom: none;
+  }
+
+  .nav-menu-item:hover {
+    background: rgba(201, 168, 76, 0.07);
     color: var(--text-primary);
+    text-decoration: none;
   }
 
-  .mobile-menu-item.active {
+  .nav-menu-item.active {
     color: var(--accent);
-  }
-
-  .desktop-only { display: flex; }
-  .mobile-only  { display: none; }
-
-  @media (max-width: 768px) {
-    .desktop-only { display: none; }
-    .mobile-only  { display: flex; }
+    font-weight: 600;
   }
 </style>

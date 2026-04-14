@@ -284,7 +284,7 @@
   }
 
   .btn-add:hover:not(:disabled) {
-    background: #c73550;
+    background: var(--accent-dark);
   }
 
   .btn-add.in-list,
@@ -301,8 +301,8 @@
   }
 
   .btn-remove:hover {
-    border-color: #e94560;
-    color: #e94560;
-    background: rgba(233, 69, 96, 0.08);
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
   }
 </style>
