@@ -35,7 +35,7 @@
   }
 </script>
 
-<div class="onboarding">
+<main class="onboarding">
   {#if step === 1}
     <div class="step fade-in">
       <div class="logo">🎬</div>
@@ -89,7 +89,7 @@
       <button class="btn-primary" on:click={getStarted}>Let's Go →</button>
     </div>
   {/if}
-</div>
+</main>
 
 <style>
   .onboarding {
@@ -215,7 +215,7 @@
     width: 100%;
     padding: 0.75rem 1.5rem;
     background: var(--accent);
-    color: #fff;
+    color: var(--bg);
     border: none;
     border-radius: var(--radius);
     font-size: 1rem;

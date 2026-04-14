@@ -45,14 +45,14 @@
 
   <!-- Body -->
   <div class="card-body">
-    <h3 class="card-title">
+    <h2 class="card-title">
       <a
         href="{TMDB_BASE}{film.tmdb_id}"
         target="_blank"
         rel="noopener noreferrer"
         title={film.title}
       >{film.title}</a>
-    </h3>
+    </h2>
 
     {#if film.year}
       <span class="year">{film.year}</span>
@@ -280,7 +280,7 @@
 
   .btn-add {
     background: var(--accent);
-    color: #fff;
+    color: var(--bg);
   }
 
   .btn-add:hover:not(:disabled) {

@@ -196,7 +196,7 @@
     background: var(--accent);
     border: none;
     border-radius: var(--radius);
-    color: #fff;
+    color: var(--bg);
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;

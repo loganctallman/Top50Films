@@ -141,7 +141,7 @@
     background: var(--accent);
     border: none;
     border-radius: var(--radius);
-    color: #fff;
+    color: var(--bg);
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
@@ -169,7 +169,7 @@
   .add-more-btn {
     padding: 0.4rem 1rem;
     background: var(--accent);
-    color: #fff;
+    color: var(--bg);
     border: none;
     border-radius: var(--radius);
     font-size: 0.875rem;
@@ -205,7 +205,7 @@
   .btn-primary {
     padding: 0.65rem 1.5rem;
     background: var(--accent);
-    color: #fff;
+    color: var(--bg);
     border: none;
     border-radius: var(--radius);
     font-size: 0.9375rem;

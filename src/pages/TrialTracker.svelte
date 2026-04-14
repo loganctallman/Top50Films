@@ -255,7 +255,7 @@
   .btn-primary {
     padding: 0.55rem 1.25rem;
     background: var(--accent);
-    color: #fff;
+    color: var(--bg);
     border: none;
     border-radius: var(--radius);
     font-size: 0.875rem;

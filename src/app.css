@@ -9,7 +9,7 @@
   --accent-dim:       rgba(201, 168, 76, 0.15);
   --text-primary:     #e8dfc8;
   --text-secondary:   #a09070;
-  --text-muted:       #68604a;
+  --text-muted:       #8a806a;  /* lightened from #68604a — WCAG AA contrast ≥4.5:1 on dark bg */
   --success:          #4ade80;
   --success-dim:      rgba(74, 222, 128, 0.12);
   --warning:          #c9a84c;

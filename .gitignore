@@ -138,3 +138,13 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vercel
+
+# macOS
+.DS_Store
+
+# Claude Code project memory
+.claude/
+
+# Playwright artifacts
+test-results/
+playwright-report/

@@ -736,7 +736,7 @@
   .genre-btn.active {
     background: var(--accent);
     border-color: var(--accent);
-    color: #fff;
+    color: var(--bg);
   }
 
   .grid {
@@ -894,7 +894,7 @@
 
   .person-dept {
     font-size: 0.75rem;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     white-space: nowrap;
     flex-shrink: 0;
   }

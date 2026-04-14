@@ -157,7 +157,7 @@
             {#if provider.logo_path}
               <img
                 src="{LOGO_BASE}{provider.logo_path}"
-                alt={provider.provider_name}
+                alt=""
                 class="provider-logo"
                 loading="lazy"
               />
@@ -518,7 +518,7 @@
   .btn-danger {
     padding: 0.6rem 1.25rem;
     background: var(--accent);
-    color: #fff;
+    color: var(--bg);
     border: none;
     border-radius: var(--radius);
     font-size: 0.875rem;
