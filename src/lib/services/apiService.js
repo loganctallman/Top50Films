@@ -33,5 +33,13 @@ export const apiService = {
 
   suggestions(genre_ids) {
     return request(`/suggestions?genre_ids=${genre_ids.join(',')}`)
+  },
+
+  personSearch(query) {
+    return request(`/person/search?query=${encodeURIComponent(query)}`)
+  },
+
+  personFilmography(id) {
+    return request(`/person/${id}`)
   }
 }

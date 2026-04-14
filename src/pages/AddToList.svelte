@@ -45,6 +45,14 @@
   let searchPage = 1
   let hasMoreSearchPages = false
 
+  // Person / Director / Actor search
+  let searchMode = 'film' // 'film' | 'person'
+  let personResults = []
+  let selectedPerson = null
+  let personSearching = false
+  let personError = null
+  let personDebounce
+
   // Per-film provider loading map
   let providerMap = {}
 
@@ -155,13 +163,106 @@
     loadingProviders = false
   }
 
+  function handleModeChange() {
+    searchQuery = ''
+    films = []
+    clientBuffer = []
+    isFetchingBuffer = false
+    providerMap = {}
+    filmsError = null
+    searchError = null
+    personResults = []
+    selectedPerson = null
+    personError = null
+    if (searchMode === 'film') loadGenre(selectedGenre)
+  }
+
   function handleSearchInput() {
+    if (searchMode === 'person') {
+      handlePersonSearchInput()
+      return
+    }
     clearTimeout(searchDebounce)
     if (!searchQuery.trim()) {
       loadGenre(selectedGenre)
       return
     }
     searchDebounce = setTimeout(() => runSearch(searchQuery), 400)
+  }
+
+  function handlePersonSearchInput() {
+    if (selectedPerson) {
+      selectedPerson = null
+      films = []
+      clientBuffer = []
+      providerMap = {}
+      filmsError = null
+    }
+    clearTimeout(personDebounce)
+    if (!searchQuery.trim()) {
+      personResults = []
+      personError = null
+      return
+    }
+    personDebounce = setTimeout(() => runPersonSearch(searchQuery), 400)
+  }
+
+  async function runPersonSearch(query) {
+    personSearching = true
+    personError = null
+    personResults = []
+    try {
+      const data = await apiService.personSearch(query)
+      personResults = data.results || []
+      if (personResults.length === 0) personError = 'no-results'
+    } catch {
+      personError = 'network'
+    } finally {
+      personSearching = false
+    }
+  }
+
+  async function loadPersonFilmography(person) {
+    selectedPerson = person
+    personResults = []
+    films = []
+    clientBuffer = []
+    providerMap = {}
+    filmsError = null
+    loadingFilms = true
+    try {
+      const data = await apiService.personFilmography(person.id)
+      const all = data.results || []
+      if (all.length === 0) {
+        filmsError = 'no-results'
+      } else {
+        films = all.slice(0, INITIAL_DISPLAY)
+        clientBuffer = all.slice(INITIAL_DISPLAY)
+      }
+    } catch {
+      filmsError = 'network'
+    } finally {
+      loadingFilms = false
+    }
+    if (films.length > 0) fetchProvidersForFilms(films)
+  }
+
+  function clearSelectedPerson() {
+    selectedPerson = null
+    searchQuery = ''
+    films = []
+    clientBuffer = []
+    providerMap = {}
+    filmsError = null
+    personResults = []
+    personError = null
+  }
+
+  function loadMorePerson() {
+    const toShow = clientBuffer.slice(0, LOAD_MORE_SIZE)
+    clientBuffer = clientBuffer.slice(LOAD_MORE_SIZE)
+    films = [...films, ...toShow]
+    if (toShow.length > 0) fetchProvidersForFilms(toShow)
   }
 
   async function runSearch(query) {
@@ -269,12 +370,16 @@
     setTimeout(() => { addMessage = null; addMessageFilmId = null }, 1500)
   }
 
-  $: displayError = searchQuery.trim() ? searchError : filmsError
-  $: loading = loadingFilms || isSearching
+  $: displayError = searchMode === 'person'
+    ? (selectedPerson ? filmsError : null)
+    : (searchQuery.trim() ? searchError : filmsError)
+  $: loading = loadingFilms || (searchMode === 'film' && isSearching)
   $: showLoadMore = !loading && !displayError && (
-    searchQuery.trim()
-      ? (clientBuffer.length > 0 || hasMoreSearchPages)
-      : (clientBuffer.length > 0 || hasMoreServerPages)
+    searchMode === 'person'
+      ? (!!selectedPerson && clientBuffer.length > 0)
+      : searchQuery.trim()
+        ? (clientBuffer.length > 0 || hasMoreSearchPages)
+        : (clientBuffer.length > 0 || hasMoreServerPages)
   )
 </script>
 
@@ -289,21 +394,33 @@
 
   <!-- Search bar -->
   <div class="search-wrap">
+    <div class="mode-select-wrap">
+      <select
+        class="mode-select"
+        bind:value={searchMode}
+        on:change={handleModeChange}
+        aria-label="Search mode"
+      >
+        <option value="film">Film</option>
+        <option value="person">Director / Actor</option>
+      </select>
+      <span class="mode-arrow" aria-hidden="true">▾</span>
+    </div>
     <input
       class="search-input"
       type="search"
-      placeholder="Search films…"
+      placeholder={searchMode === 'film' ? 'Search films…' : 'Search directors & actors…'}
       bind:value={searchQuery}
       on:input={handleSearchInput}
-      aria-label="Search films"
+      aria-label={searchMode === 'film' ? 'Search films' : 'Search directors and actors'}
     />
-    {#if isSearching}
+    {#if isSearching || personSearching}
       <span class="search-spinner" aria-hidden="true">⏳</span>
     {/if}
   </div>
 
-  <!-- Genre filters (hidden while searching) -->
-  {#if !searchQuery.trim()}
+  <!-- Genre filters (film mode only, hidden while searching) -->
+  {#if searchMode === 'film' && !searchQuery.trim()}
     <div class="genre-filters" role="group" aria-label="Genre filter">
       {#each GENRES as genre}
         <button
@@ -318,60 +435,99 @@
     </div>
   {/if}
 
-  <!-- Results -->
-  {#if loading}
-    <div class="grid">
-      <SkeletonCard count={12} />
-    </div>
-  {:else if displayError}
-    <div class="error-state">
-      {#if displayError === 'no-results'}
-        <p>{searchQuery.trim() ? 'No films found for that search.' : 'No results for this genre right now.'}</p>
-      {:else}
+  <!-- Person search results -->
+  {#if searchMode === 'person' && !selectedPerson}
+    {#if personSearching}
+      <div class="person-searching">Searching…</div>
+    {:else if personResults.length > 0}
+      <ul class="person-list" role="list">
+        {#each personResults as person (person.id)}
+          <li>
+            <button class="person-item" on:click={() => loadPersonFilmography(person)}>
+              <span class="person-name">{person.name}</span>
+              <span class="person-dept">{person.known_for_department}</span>
+            </button>
+          </li>
+        {/each}
+      </ul>
+    {:else if personError === 'no-results'}
+      <div class="error-state"><p>No results found for that name.</p></div>
+    {:else if personError === 'network'}
+      <div class="error-state">
         <p>Couldn't connect — check your internet connection.</p>
-        <button class="retry-btn" on:click={() => searchQuery.trim() ? runSearch(searchQuery) : loadGenre(selectedGenre)}>
-          Try Again
-        </button>
-      {/if}
-    </div>
-  {:else}
-    <div class="grid">
-      {#each films as film (film.tmdb_id)}
-        <div class="card-wrap">
-          <FilmCard
-            film={{...film, watch_providers: providerMap[film.tmdb_id] || []}}
-            streamingPrefs={$streamingPrefs}
-            isInList={isDuplicate($favorites, film.tmdb_id)}
-            loadingProviders={loadingProviders && providerMap[film.tmdb_id] === undefined}
-            on:add={handleAdd}
-            on:remove={handleRemove}
-          />
-          {#if addMessageFilmId === film.tmdb_id && addMessage}
-            <div class="add-message" class:success={addMessage === 'Added!'}>
-              {addMessage}
-            </div>
-          {/if}
-        </div>
-      {/each}
-    </div>
-  {/if}
+        <button class="retry-btn" on:click={() => runPersonSearch(searchQuery)}>Try Again</button>
+      </div>
+    {:else}
+      <div class="person-prompt">
+        <p>Search for a director or actor above to browse their filmography.</p>
+      </div>
+    {/if}
 
-  {#if showLoadMore}
-    <div class="load-more-wrap">
-      <button
-        class="load-more-btn"
-        on:click={searchQuery.trim() ? loadMoreSearch : loadMoreGenre}
-        disabled={loadingMore}
-      >
-        {loadingMore ? 'Loading…' : 'Load more'}
-      </button>
-      <button
-        class="back-top-btn"
-        on:click={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-      >
-        ↑ Back to top
-      </button>
-    </div>
+  {:else}
+    <!-- Person filmography breadcrumb -->
+    {#if searchMode === 'person' && selectedPerson && !loading}
+      <div class="person-breadcrumb">
+        <button class="breadcrumb-back" on:click={clearSelectedPerson}>← Back</button>
+        <span class="breadcrumb-name">{selectedPerson.name}</span>
+        <span class="breadcrumb-dept">{selectedPerson.known_for_department}</span>
+      </div>
+    {/if}
+
+    <!-- Film grid (both modes) -->
+    {#if loading}
+      <div class="grid">
+        <SkeletonCard count={12} />
+      </div>
+    {:else if displayError}
+      <div class="error-state">
+        {#if displayError === 'no-results'}
+          <p>{searchMode === 'person' ? 'No films found for this person.' : searchQuery.trim() ? 'No films found for that search.' : 'No results for this genre right now.'}</p>
+        {:else}
+          <p>Couldn't connect — check your internet connection.</p>
+          <button class="retry-btn" on:click={() => searchQuery.trim() ? runSearch(searchQuery) : loadGenre(selectedGenre)}>
+            Try Again
+          </button>
+        {/if}
+      </div>
+    {:else}
+      <div class="grid">
+        {#each films as film (film.tmdb_id)}
+          <div class="card-wrap">
+            <FilmCard
+              film={{...film, watch_providers: providerMap[film.tmdb_id] || []}}
+              streamingPrefs={$streamingPrefs}
+              isInList={isDuplicate($favorites, film.tmdb_id)}
+              loadingProviders={loadingProviders && providerMap[film.tmdb_id] === undefined}
+              on:add={handleAdd}
+              on:remove={handleRemove}
+            />
+            {#if addMessageFilmId === film.tmdb_id && addMessage}
+              <div class="add-message" class:success={addMessage === 'Added!'}>
+                {addMessage}
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
+
+    {#if showLoadMore}
+      <div class="load-more-wrap">
+        <button
+          class="load-more-btn"
+          on:click={searchMode === 'person' ? loadMorePerson : (searchQuery.trim() ? loadMoreSearch : loadMoreGenre)}
+          disabled={loadingMore}
+        >
+          {loadingMore ? 'Loading…' : 'Load more'}
+        </button>
+        <button
+          class="back-top-btn"
+          on:click={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        >
+          ↑ Back to top
+        </button>
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -420,15 +576,51 @@
     position: relative;
     margin-bottom: 1rem;
     width: 100%;
+    display: flex;
+    align-items: stretch;
+  }
+
+  .mode-select-wrap {
+    position: relative;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  .mode-select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding: 0 2rem 0 0.75rem;
+    height: 100%;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-right: none;
+    border-radius: var(--radius) 0 0 var(--radius);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+
+  .mode-select:focus { border-color: var(--accent); color: var(--text-primary); }
+
+  .mode-arrow {
+    position: absolute;
+    right: 0.5rem;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    pointer-events: none;
   }
 
   .search-input {
-    width: 100%;
+    flex: 1;
     min-width: 0;
     padding: 0.65rem 1rem;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: 0 var(--radius) var(--radius) 0;
     color: var(--text-primary);
     font-size: 1rem;
     outline: none;
@@ -444,6 +636,7 @@
     top: 50%;
     transform: translateY(-50%);
     font-size: 0.875rem;
+    pointer-events: none;
   }
 
   .genre-filters {
@@ -573,5 +766,95 @@
   .load-more-btn:disabled {
     opacity: 0.5;
     cursor: default;
+  }
+
+  /* Person search */
+  .person-prompt {
+    padding: 3rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+  }
+
+  .person-searching {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+  }
+
+  .person-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+
+  .person-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .person-item:hover {
+    border-color: var(--accent);
+    background: var(--surface-elevated);
+  }
+
+  .person-name {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .person-dept {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Person filmography breadcrumb */
+  .person-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .breadcrumb-back {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent);
+    font-size: 0.875rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.15s;
+  }
+
+  .breadcrumb-back:hover { opacity: 0.75; }
+
+  .breadcrumb-name {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .breadcrumb-dept {
+    font-size: 0.75rem;
+    color: var(--text-muted);
   }
 </style>
