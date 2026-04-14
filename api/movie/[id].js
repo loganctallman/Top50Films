@@ -30,6 +30,7 @@ export default async function handler(req, res) {
 
     // Combine subscription (flatrate), free, and ad-supported tiers
     // Deduplicate by provider_id in case a service appears in multiple tiers
+    const watchLink = us.link || null
     const seen = new Set()
     const watch_providers = ['flatrate', 'free', 'ads']
       .flatMap(type => (us[type] || []).map(p => ({ ...p, streaming_type: type })))
@@ -42,7 +43,9 @@ export default async function handler(req, res) {
         provider_id: p.provider_id,
         provider_name: p.provider_name,
         logo_path: p.logo_path || null,
-        streaming_type: p.streaming_type
+        streaming_type: p.streaming_type,
+        // free/ads tiers get the TMDB watch page link; flatrate users already know they have it
+        watch_link: p.streaming_type !== 'flatrate' ? watchLink : null
       }))
 
     return res.status(200).json({
