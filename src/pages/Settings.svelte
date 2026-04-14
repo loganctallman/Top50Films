@@ -14,6 +14,30 @@
   let showAllProviders = false
   let providerSearch = ''
 
+  // PWA install prompt
+  let installPrompt = null
+  let justInstalled = false
+
+  function handleBeforeInstallPrompt(e) {
+    e.preventDefault()
+    installPrompt = e
+  }
+
+  function handleAppInstalled() {
+    installPrompt = null
+    justInstalled = true
+  }
+
+  async function installApp() {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    const { outcome } = await installPrompt.userChoice
+    if (outcome === 'accepted') {
+      installPrompt = null
+      justInstalled = true
+    }
+  }
+
   const PROVIDER_LIMIT = 32
 
   $: filteredProviders = providerSearch.trim()
@@ -37,6 +61,13 @@
       providersError = 'network'
     } finally {
       loadingProviders = false
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    window.addEventListener('appinstalled', handleAppInstalled)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+      window.removeEventListener('appinstalled', handleAppInstalled)
     }
   })
 
@@ -193,6 +224,21 @@
       </div>
     {/if}
   </section>
+
+  <!-- Install App -->
+  {#if installPrompt || justInstalled}
+    <section class="section install-section">
+      <h2>Install App</h2>
+      {#if justInstalled}
+        <p class="install-success">App installed — find it on your home screen.</p>
+      {:else}
+        <p class="section-desc">Add My Top 50 to your home screen for quick access, offline support, and a full-screen experience.</p>
+        <button class="btn-install" on:click={installApp}>
+          Install App
+        </button>
+      {/if}
+    </section>
+  {/if}
 </div>
 
 <style>
@@ -514,5 +560,34 @@
   .btn-ghost:hover {
     color: var(--text-primary);
     border-color: var(--text-secondary);
+  }
+
+  /* Install section */
+  .install-section {
+    border-color: rgba(201, 168, 76, 0.25);
+  }
+
+  .btn-install {
+    margin-top: 0.75rem;
+    padding: 0.65rem 1.5rem;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: var(--radius);
+    font-size: 0.9375rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.15s;
+  }
+
+  .btn-install:hover {
+    background: var(--accent-dark);
+    transform: translateY(-1px);
+  }
+
+  .install-success {
+    font-size: 0.875rem;
+    color: var(--success);
+    margin: 0.25rem 0 0;
   }
 </style>
