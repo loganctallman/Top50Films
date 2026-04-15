@@ -621,6 +621,7 @@
       <button
         class="filter-btn"
         class:active={filterMode !== 'all'}
+        aria-label="Streaming filter: {filterLabel}"
         on:click|stopPropagation={() => filterOpen = !filterOpen}
         aria-haspopup="listbox"
         aria-expanded={filterOpen}

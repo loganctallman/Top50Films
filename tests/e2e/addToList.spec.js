@@ -26,13 +26,15 @@ test.describe('Add to List', () => {
   })
 
   test('shows genre filter buttons', async ({ page }) => {
-    await expect(page.getByRole('button', { name: 'All' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Action' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Drama' })).toBeVisible()
+    const genreGroup = page.getByRole('group', { name: 'Genre filter' })
+    await expect(genreGroup.getByRole('button', { name: 'All', exact: true })).toBeVisible()
+    await expect(genreGroup.getByRole('button', { name: 'Action' })).toBeVisible()
+    await expect(genreGroup.getByRole('button', { name: 'Drama' })).toBeVisible()
   })
 
   test('All genre filter is active by default', async ({ page }) => {
-    const allBtn = page.getByRole('button', { name: 'All' })
+    const genreGroup = page.getByRole('group', { name: 'Genre filter' })
+    const allBtn = genreGroup.getByRole('button', { name: 'All', exact: true })
     await expect(allBtn).toHaveAttribute('aria-pressed', 'true')
   })
 
