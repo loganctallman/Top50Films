@@ -27,10 +27,11 @@
   let selectedGenre = GENRES[0]
   const INITIAL_DISPLAY = 24
   const LOAD_MORE_SIZE = 12
+  const FILTER_BATCH = 5   // pages to fetch per bulk load in filtered mode
 
   let films = []
-  let clientBuffer = []        // fetched but not yet shown
-  let isFetchingBuffer = false // prevent concurrent background fetches
+  let clientBuffer = []
+  let isFetchingBuffer = false
   let loadingFilms = false
   let loadingProviders = false
   let loadingMore = false
@@ -45,8 +46,8 @@
   let searchPage = 1
   let hasMoreSearchPages = false
 
-  // Person / Director / Actor search
-  let searchMode = 'film' // 'film' | 'person'
+  // Search mode (film / person)
+  let searchMode = 'film'
   let modeOpen = false
   let personResults = []
   let selectedPerson = null
@@ -54,14 +55,44 @@
   let personError = null
   let personDebounce
 
+  // Filter mode
+  let filterMode = 'all'   // 'all' | 'my-services' | 'free'
+  let filterOpen = false
+  let filterPage = 0
+  let hasMoreFilterPages = false
+  let loadingFilter = false
+
+  $: hasStreamingPrefs = Object.values($streamingPrefs).some(Boolean)
+  $: filterLabel = filterMode === 'my-services' ? 'My Services' : filterMode === 'free' ? 'Free & Ads' : 'All'
+
   function selectMode(mode) {
     searchMode = mode
     modeOpen = false
     handleModeChange()
   }
 
+  function selectFilter(mode) {
+    filterMode = mode
+    filterOpen = false
+    reloadCurrentView()
+  }
+
+  function reloadCurrentView() {
+    if (searchMode === 'person' && selectedPerson) {
+      loadPersonFilmography(selectedPerson)
+    } else if (searchMode === 'person') {
+      films = []
+      filmsError = null
+    } else if (searchQuery.trim()) {
+      runSearch(searchQuery)
+    } else {
+      loadGenre(selectedGenre)
+    }
+  }
+
   function handleWindowClick(e) {
     if (!e.target.closest('.mode-dropdown-wrap')) modeOpen = false
+    if (!e.target.closest('.filter-dropdown-wrap')) filterOpen = false
   }
 
   // Per-film provider loading map
@@ -78,6 +109,80 @@
     loadGenre(selectedGenre)
   })
 
+  // ---------------------------------------------------------------------------
+  // Filter helpers
+  // ---------------------------------------------------------------------------
+
+  function applyFilter(film) {
+    const providers = providerMap[film.tmdb_id] || []
+    if (filterMode === 'my-services') {
+      return providers.some(p => $streamingPrefs[p.provider_id])
+    }
+    // filterMode === 'free'
+    return providers.some(p => p.streaming_type === 'free' || p.streaming_type === 'ads')
+  }
+
+  /**
+   * Fetch FILTER_BATCH pages in parallel, await all providers, filter, then
+   * append matching films to `films`. Caller must reset films/providerMap/errors
+   * before the first call; subsequent calls (load more) append to existing films.
+   */
+  async function loadBulkFiltered(pageFetcher, startPage) {
+    loadingFilter = true
+    filmsError = null
+
+    try {
+      const pageNums = Array.from({ length: FILTER_BATCH }, (_, i) => startPage + i)
+      const settled = await Promise.allSettled(pageNums.map(p => pageFetcher(p)))
+
+      const allFetched = []
+      let hitEnd = false
+      let lastSuccessPage = startPage - 1
+
+      for (let i = 0; i < settled.length; i++) {
+        if (settled[i].status === 'fulfilled') {
+          const items = settled[i].value.results || []
+          allFetched.push(...items)
+          lastSuccessPage = pageNums[i]
+          if (items.length < 20) { hitEnd = true; break }
+        } else {
+          hitEnd = true; break
+        }
+      }
+
+      hasMoreFilterPages = !hitEnd
+      filterPage = lastSuccessPage
+
+      if (allFetched.length > 0) {
+        await fetchProvidersForFilms(allFetched)
+        const matched = allFetched.filter(applyFilter)
+        films = [...films, ...matched]
+      }
+
+      if (films.length === 0) {
+        filmsError = allFetched.length === 0 ? 'no-results' : 'no-filter-results'
+      }
+    } catch {
+      if (films.length === 0) filmsError = 'network'
+    } finally {
+      loadingFilter = false
+    }
+  }
+
+  async function loadMoreFiltered() {
+    if (loadingMore || !hasMoreFilterPages) return
+    loadingMore = true
+    const pageFetcher = searchQuery.trim()
+      ? (page) => apiService.search(searchQuery, page)
+      : (page) => apiService.genreTop50(selectedGenre.id, page)
+    await loadBulkFiltered(pageFetcher, filterPage + 1)
+    loadingMore = false
+  }
+
+  // ---------------------------------------------------------------------------
+  // Genre browsing
+  // ---------------------------------------------------------------------------
+
   async function loadGenre(genre) {
     selectedGenre = genre
     searchQuery = ''
@@ -86,6 +191,15 @@
     isFetchingBuffer = false
     providerMap = {}
     filmsError = null
+    searchError = null
+    filterPage = 0
+    hasMoreFilterPages = false
+
+    if (filterMode !== 'all') {
+      await loadBulkFiltered((page) => apiService.genreTop50(genre.id, page), 1)
+      return
+    }
+
     loadingFilms = true
     currentPage = 0
     hasMoreServerPages = false
@@ -120,7 +234,6 @@
     prefetchGenreBuffer()
   }
 
-  // Background: fetch next genre page into buffer if not already fetching
   async function prefetchGenreBuffer() {
     if (isFetchingBuffer || !hasMoreServerPages) return
     isFetchingBuffer = true
@@ -143,7 +256,6 @@
     if (loadingMore) return
     loadingMore = true
 
-    // If buffer is unexpectedly empty, do a blocking fetch
     if (clientBuffer.length === 0 && hasMoreServerPages) {
       await prefetchGenreBuffer()
     }
@@ -154,10 +266,12 @@
     if (toShow.length > 0) fetchProvidersForFilms(toShow)
 
     loadingMore = false
-
-    // Refill buffer in background after every display
     prefetchGenreBuffer()
   }
+
+  // ---------------------------------------------------------------------------
+  // Providers
+  // ---------------------------------------------------------------------------
 
   async function fetchProvidersForFilms(filmList) {
     loadingProviders = true
@@ -174,6 +288,10 @@
     loadingProviders = false
   }
 
+  // ---------------------------------------------------------------------------
+  // Mode switching (Film / Director / Actor)
+  // ---------------------------------------------------------------------------
+
   function handleModeChange() {
     searchQuery = ''
     films = []
@@ -185,8 +303,14 @@
     personResults = []
     selectedPerson = null
     personError = null
+    filterPage = 0
+    hasMoreFilterPages = false
     if (searchMode === 'film') loadGenre(selectedGenre)
   }
+
+  // ---------------------------------------------------------------------------
+  // Search
+  // ---------------------------------------------------------------------------
 
   function handleSearchInput() {
     if (searchMode === 'person') {
@@ -208,6 +332,8 @@
       clientBuffer = []
       providerMap = {}
       filmsError = null
+      filterPage = 0
+      hasMoreFilterPages = false
     }
     clearTimeout(personDebounce)
     if (!searchQuery.trim()) {
@@ -241,11 +367,27 @@
     providerMap = {}
     filmsError = null
     loadingFilms = true
+    filterPage = 0
+    hasMoreFilterPages = false
+
     try {
       const data = await apiService.personFilmography(person.id)
       const all = data.results || []
       if (all.length === 0) {
         filmsError = 'no-results'
+        return
+      }
+
+      if (filterMode !== 'all') {
+        // Await all providers before revealing any results — no flash
+        loadingFilter = true
+        loadingFilms = false
+        await fetchProvidersForFilms(all)
+        const matched = all.filter(applyFilter)
+        films = matched
+        clientBuffer = []
+        if (matched.length === 0) filmsError = 'no-filter-results'
+        loadingFilter = false
       } else {
         films = all.slice(0, INITIAL_DISPLAY)
         clientBuffer = all.slice(INITIAL_DISPLAY)
@@ -255,7 +397,8 @@
     } finally {
       loadingFilms = false
     }
-    if (films.length > 0) fetchProvidersForFilms(films)
+
+    if (filterMode === 'all' && films.length > 0) fetchProvidersForFilms(films)
   }
 
   function clearSelectedPerson() {
@@ -267,6 +410,8 @@
     filmsError = null
     personResults = []
     personError = null
+    filterPage = 0
+    hasMoreFilterPages = false
   }
 
   function loadMorePerson() {
@@ -282,6 +427,15 @@
     isFetchingBuffer = false
     providerMap = {}
     searchError = null
+    filmsError = null
+    filterPage = 0
+    hasMoreFilterPages = false
+
+    if (filterMode !== 'all') {
+      await loadBulkFiltered((page) => apiService.search(query, page), 1)
+      return
+    }
+
     isSearching = true
     searchPage = 0
     hasMoreSearchPages = false
@@ -316,7 +470,6 @@
     prefetchSearchBuffer()
   }
 
-  // Background: fetch next search page into buffer if not already fetching
   async function prefetchSearchBuffer() {
     if (isFetchingBuffer || !hasMoreSearchPages) return
     isFetchingBuffer = true
@@ -339,7 +492,6 @@
     if (loadingMore) return
     loadingMore = true
 
-    // If buffer is unexpectedly empty, do a blocking fetch
     if (clientBuffer.length === 0 && hasMoreSearchPages) {
       await prefetchSearchBuffer()
     }
@@ -350,10 +502,12 @@
     if (toShow.length > 0) fetchProvidersForFilms(toShow)
 
     loadingMore = false
-
-    // Refill buffer in background after every display
     prefetchSearchBuffer()
   }
+
+  // ---------------------------------------------------------------------------
+  // Add / Remove
+  // ---------------------------------------------------------------------------
 
   function handleAdd(e) {
     const film = e.detail
@@ -381,16 +535,26 @@
     setTimeout(() => { addMessage = null; addMessageFilmId = null }, 1500)
   }
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   $: displayError = searchMode === 'person'
     ? (selectedPerson ? filmsError : null)
-    : (searchQuery.trim() ? searchError : filmsError)
-  $: loading = loadingFilms || (searchMode === 'film' && isSearching)
-  $: showLoadMore = !loading && !displayError && (
-    searchMode === 'person'
-      ? (!!selectedPerson && clientBuffer.length > 0)
-      : searchQuery.trim()
-        ? (clientBuffer.length > 0 || hasMoreSearchPages)
-        : (clientBuffer.length > 0 || hasMoreServerPages)
+    : (searchQuery.trim() && filterMode === 'all' ? searchError : filmsError)
+
+  $: loading = loadingFilms || (searchMode === 'film' && isSearching) || loadingFilter
+
+  $: showLoadMore = !loading && !loadingMore && (
+    filterMode !== 'all' && searchMode !== 'person'
+      ? hasMoreFilterPages && displayError !== 'no-results' && displayError !== 'network'
+      : !displayError && (
+          searchMode === 'person'
+            ? (!!selectedPerson && clientBuffer.length > 0)
+            : searchQuery.trim()
+              ? (clientBuffer.length > 0 || hasMoreSearchPages)
+              : (clientBuffer.length > 0 || hasMoreServerPages)
+        )
   )
 </script>
 
@@ -407,6 +571,7 @@
 
   <!-- Search bar -->
   <div class="search-wrap">
+    <!-- Left: search mode dropdown -->
     <div class="mode-dropdown-wrap">
       <button
         class="mode-btn"
@@ -440,6 +605,8 @@
         </ul>
       {/if}
     </div>
+
+    <!-- Middle: search input -->
     <input
       class="search-input"
       type="search"
@@ -448,12 +615,56 @@
       on:input={handleSearchInput}
       aria-label={searchMode === 'film' ? 'Search films' : 'Search directors and actors'}
     />
-    {#if isSearching || personSearching}
-      <span class="search-spinner" aria-hidden="true">⏳</span>
-    {/if}
+
+    <!-- Right: filter dropdown -->
+    <div class="filter-dropdown-wrap">
+      <button
+        class="filter-btn"
+        class:active={filterMode !== 'all'}
+        on:click|stopPropagation={() => filterOpen = !filterOpen}
+        aria-haspopup="listbox"
+        aria-expanded={filterOpen}
+      >
+        {filterLabel}
+        <span class="filter-arrow" aria-hidden="true">▾</span>
+      </button>
+      {#if filterOpen}
+        <ul class="filter-options" role="listbox">
+          <li>
+            <button
+              class="filter-option"
+              class:selected={filterMode === 'all'}
+              role="option"
+              aria-selected={filterMode === 'all'}
+              on:click={() => selectFilter('all')}
+            >All</button>
+          </li>
+          {#if hasStreamingPrefs}
+            <li>
+              <button
+                class="filter-option"
+                class:selected={filterMode === 'my-services'}
+                role="option"
+                aria-selected={filterMode === 'my-services'}
+                on:click={() => selectFilter('my-services')}
+              >My Services</button>
+            </li>
+          {/if}
+          <li>
+            <button
+              class="filter-option"
+              class:selected={filterMode === 'free'}
+              role="option"
+              aria-selected={filterMode === 'free'}
+              on:click={() => selectFilter('free')}
+            >Free & Ads</button>
+          </li>
+        </ul>
+      {/if}
+    </div>
   </div>
 
-  <!-- Genre filters (film mode only, hidden while searching) -->
+  <!-- Genre filters (film mode only, hidden while searching or in filtered mode) -->
   {#if searchMode === 'film' && !searchQuery.trim()}
     <div class="genre-filters" role="group" aria-label="Genre filter">
       {#each GENRES as genre}
@@ -514,7 +725,17 @@
       </div>
     {:else if displayError}
       <div class="error-state">
-        {#if displayError === 'no-results'}
+        {#if displayError === 'no-filter-results'}
+          <p>
+            No films {filterMode === 'my-services' ? 'on your services' : 'available free or ad-supported'}
+            {searchQuery.trim() ? 'matching that search' : `in ${selectedGenre.name === 'All' ? 'this category' : selectedGenre.name}`}.
+          </p>
+          {#if hasMoreFilterPages}
+            <button class="retry-btn" on:click={loadMoreFiltered} disabled={loadingMore}>
+              {loadingMore ? 'Searching…' : 'Search more pages'}
+            </button>
+          {/if}
+        {:else if displayError === 'no-results'}
           <p>{searchMode === 'person' ? 'No films found for this person.' : searchQuery.trim() ? 'No films found for that search.' : 'No results for this genre right now.'}</p>
         {:else}
           <p>Couldn't connect — check your internet connection.</p>
@@ -549,7 +770,11 @@
       <div class="load-more-wrap">
         <button
           class="load-more-btn"
-          on:click={searchMode === 'person' ? loadMorePerson : (searchQuery.trim() ? loadMoreSearch : loadMoreGenre)}
+          on:click={filterMode !== 'all'
+            ? loadMoreFiltered
+            : searchMode === 'person'
+              ? loadMorePerson
+              : (searchQuery.trim() ? loadMoreSearch : loadMoreGenre)}
           disabled={loadingMore}
         >
           {loadingMore ? 'Loading…' : 'Load more'}
@@ -606,6 +831,7 @@
     color: var(--accent);
   }
 
+  /* Search bar row */
   .search-wrap {
     position: relative;
     margin-bottom: 1rem;
@@ -614,6 +840,7 @@
     align-items: stretch;
   }
 
+  /* ---- Mode dropdown (left) ---- */
   .mode-dropdown-wrap {
     position: relative;
     flex-shrink: 0;
@@ -688,13 +915,14 @@
     font-weight: 600;
   }
 
+  /* ---- Search input (middle) ---- */
   .search-input {
     flex: 1;
     min-width: 0;
     padding: 0.65rem 1rem;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 0 var(--radius) var(--radius) 0;
+    border-radius: 0;          /* squared both sides — flanked by two dropdowns */
     color: var(--text-primary);
     font-size: 1rem;
     outline: none;
@@ -704,15 +932,94 @@
   .search-input:focus { border-color: var(--accent); }
   .search-input::placeholder { color: var(--text-muted); }
 
-  .search-spinner {
-    position: absolute;
-    right: 0.75rem;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 0.875rem;
-    pointer-events: none;
+  /* ---- Filter dropdown (right) ---- */
+  .filter-dropdown-wrap {
+    position: relative;
+    flex-shrink: 0;
   }
 
+  .filter-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0 0.875rem;
+    height: 100%;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-left: none;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .filter-btn:hover,
+  .filter-btn:focus {
+    border-color: var(--accent);
+    color: var(--text-primary);
+    outline: none;
+  }
+
+  .filter-btn.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    border-left: none;
+  }
+
+  /* Re-apply the left-gap border when active so the input focus border lines up */
+  .filter-btn.active + .filter-options,
+  .filter-btn.active {
+    border-left: none;
+  }
+
+  .filter-arrow {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+  }
+
+  .filter-options {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 150px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    list-style: none;
+    padding: 0.25rem;
+    margin: 0;
+    z-index: 100;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  }
+
+  .filter-option {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: none;
+    border: none;
+    border-radius: calc(var(--radius) - 2px);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+  }
+
+  .filter-option:hover {
+    background: var(--surface);
+    color: var(--text-primary);
+  }
+
+  .filter-option.selected {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* ---- Genre chips ---- */
   .genre-filters {
     display: flex;
     flex-wrap: wrap;
@@ -739,6 +1046,7 @@
     color: var(--bg);
   }
 
+  /* ---- Film grid ---- */
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -776,6 +1084,7 @@
     color: var(--success);
   }
 
+  /* ---- Error / empty states ---- */
   .error-state {
     padding: 3rem 1rem;
     text-align: center;
@@ -793,8 +1102,10 @@
     font-size: 0.875rem;
   }
 
-  .retry-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .retry-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .retry-btn:disabled { opacity: 0.5; cursor: default; }
 
+  /* ---- Load more ---- */
   .load-more-wrap {
     display: flex;
     justify-content: center;
@@ -842,7 +1153,7 @@
     cursor: default;
   }
 
-  /* Person search */
+  /* ---- Person search ---- */
   .person-prompt {
     padding: 3rem 1rem;
     text-align: center;
@@ -899,7 +1210,7 @@
     flex-shrink: 0;
   }
 
-  /* Person filmography breadcrumb */
+  /* ---- Person filmography breadcrumb ---- */
   .person-breadcrumb {
     display: flex;
     align-items: center;
