@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockAllApis, skipOnboarding, fixtures } from './helpers.js'
+import { mockAllApis, skipOnboarding, seedStorage, fixtures } from './helpers.js'
 
 test.describe('Add to List', () => {
   test.beforeEach(async ({ page }) => {
@@ -146,5 +146,83 @@ test.describe('Add to List', () => {
     await page.getByText('Francis Ford Coppola').click()
     await page.getByRole('button', { name: '← Back' }).click()
     await expect(page.getByText('Search for a director or actor above')).toBeVisible()
+  })
+
+  // -------------------------------------------------------------------------
+  // Streaming filter — no streaming prefs set
+  // -------------------------------------------------------------------------
+
+  test.describe('streaming filter', () => {
+    test('filter button is visible and defaults to All', async ({ page }) => {
+      await expect(page.getByRole('button', { name: 'Streaming filter: All' })).toBeVisible()
+    })
+
+    test('"My Services" option is hidden when no streaming prefs are set', async ({ page }) => {
+      await page.getByRole('button', { name: 'Streaming filter: All' }).click()
+      await expect(page.getByRole('option', { name: 'My Services' })).not.toBeVisible()
+      await expect(page.getByRole('option', { name: 'All', exact: true })).toBeVisible()
+      await expect(page.getByRole('option', { name: 'Free & Ads' })).toBeVisible()
+    })
+
+    test('"Free & Ads" filter shows matching films and updates button label', async ({ page }) => {
+      await page.getByRole('button', { name: 'Streaming filter: All' }).click()
+      await page.getByRole('option', { name: 'Free & Ads' }).click()
+      // Button label reflects active filter
+      await expect(page.getByRole('button', { name: 'Streaming filter: Free & Ads' })).toBeVisible()
+      // Films with free/ads providers appear (mock returns Tubi TV as 'free')
+      await expect(page.getByText('The Godfather').first()).toBeVisible()
+    })
+
+    test('filter shows no-results state when no films match', async ({ page }) => {
+      // Override movie route to return no providers so nothing passes the filter
+      await page.route('**/api/movie/**', route =>
+        route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.movieNoProviders) })
+      )
+      await page.getByRole('button', { name: 'Streaming filter: All' }).click()
+      await page.getByRole('option', { name: 'Free & Ads' }).click()
+      await expect(page.getByText(/No films available free or ad-supported/)).toBeVisible()
+    })
+
+    test('switching back to All restores full results', async ({ page }) => {
+      // Activate a filter
+      await page.getByRole('button', { name: 'Streaming filter: All' }).click()
+      await page.getByRole('option', { name: 'Free & Ads' }).click()
+      await expect(page.getByText('The Godfather').first()).toBeVisible()
+      // Switch back to All
+      await page.getByRole('button', { name: 'Streaming filter: Free & Ads' }).click()
+      await page.getByRole('option', { name: 'All', exact: true }).click()
+      await expect(page.getByRole('button', { name: 'Streaming filter: All' })).toBeVisible()
+      // Films still shown
+      await expect(page.getByText('The Godfather').first()).toBeVisible()
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Streaming filter — My Services (requires prefs seeded before page load)
+// ---------------------------------------------------------------------------
+
+test.describe('Add to List — My Services filter', () => {
+  test.beforeEach(async ({ page }) => {
+    await seedStorage(page, {
+      onboardingComplete: true,
+      streamingPrefs: { 8: true }  // Netflix subscribed
+    })
+    await mockAllApis(page)
+    await page.goto('/#/add')
+  })
+
+  test('"My Services" option is visible when streaming prefs are set', async ({ page }) => {
+    await page.getByRole('button', { name: 'Streaming filter: All' }).click()
+    await expect(page.getByRole('option', { name: 'My Services' })).toBeVisible()
+  })
+
+  test('"My Services" filter shows films on subscribed services', async ({ page }) => {
+    await page.getByRole('button', { name: 'Streaming filter: All' }).click()
+    await page.getByRole('option', { name: 'My Services' }).click()
+    // Button label reflects active filter
+    await expect(page.getByRole('button', { name: 'Streaming filter: My Services' })).toBeVisible()
+    // Godfather has Netflix (provider_id 8) which is subscribed
+    await expect(page.getByText('The Godfather').first()).toBeVisible()
   })
 })
