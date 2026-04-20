@@ -1,0 +1,66 @@
+name: Performance Budget
+
+on:
+  push:
+    branches: [main, Dev]
+  pull_request:
+
+# Cancel in-progress runs on new pushes to the same branch
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lighthouse:
+    name: Lighthouse CI
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      # Run Lighthouse against the 3 URLs defined in lighthouserc.json.
+      # LHCI starts vite preview itself via startServerCommand.
+      - name: Run Lighthouse CI
+        run: npx @lhci/cli@0.14.x autorun
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+      # Write a human-readable score summary to the GitHub Actions job summary.
+      - name: Write Lighthouse summary
+        if: always()
+        run: |
+          echo "## Lighthouse Performance Budget" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Budget | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Performance Score | ≥ 90 | See report |" >> $GITHUB_STEP_SUMMARY
+          echo "| Accessibility Score | ≥ 90 | See report |" >> $GITHUB_STEP_SUMMARY
+          echo "| Best Practices Score | ≥ 90 | See report |" >> $GITHUB_STEP_SUMMARY
+          echo "| First Contentful Paint | ≤ 1800 ms | See report |" >> $GITHUB_STEP_SUMMARY
+          echo "| Largest Contentful Paint | ≤ 2500 ms | See report |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cumulative Layout Shift | ≤ 0.1 | See report |" >> $GITHUB_STEP_SUMMARY
+          echo "| Total Blocking Time | ≤ 300 ms | See report |" >> $GITHUB_STEP_SUMMARY
+          echo "| Time to Interactive | ≤ 3800 ms | See report |" >> $GITHUB_STEP_SUMMARY
+          echo "| JS Bundle (transferred) | ≤ 350 KB | See report |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Full report uploaded as artifact and to LHCI temporary storage._" >> $GITHUB_STEP_SUMMARY
+
+      # Retain raw LHCI JSON + HTML reports for 30 days regardless of pass/fail.
+      - name: Upload Lighthouse report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: .lighthouseci/
+          retention-days: 30
