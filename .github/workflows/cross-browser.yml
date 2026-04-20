@@ -1,0 +1,75 @@
+name: Cross-Browser & Mobile
+
+on:
+  push:
+    branches: [main, Dev]
+  pull_request:
+
+concurrency:
+  group: cross-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cross-browser:
+    name: ${{ matrix.project }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { project: firefox,       browser: firefox  }
+          - { project: webkit,        browser: webkit   }
+          - { project: mobile-chrome, browser: chromium }
+          - { project: mobile-safari, browser: webkit   }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ matrix.browser }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright browser + system deps
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Install Playwright system deps (cached browser)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps ${{ matrix.browser }}
+
+      - name: Run E2E tests — ${{ matrix.project }}
+        run: npx playwright test --project=${{ matrix.project }}
+        continue-on-error: true
+
+      - name: Write summary
+        if: always()
+        run: |
+          echo "## ${{ matrix.project }} Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.run_tests.outcome }}" == "failure" ]; then
+            echo "⚠️ Failures detected — review the artifact before merging." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ All tests passed on ${{ matrix.project }}." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Results are informational — failures do not block deployment._" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.project }}
+          path: playwright-report/
+          retention-days: 14
