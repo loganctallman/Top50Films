@@ -22,5 +22,8 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120_000
   },
-  snapshotDir: 'tests/snapshots'
+  snapshotDir: 'tests/snapshots',
+  // Omit OS/browser from snapshot paths so one baseline works across platforms.
+  // maxDiffPixelRatio in each toHaveScreenshot() call handles rendering variance.
+  snapshotPathTemplate: '{snapshotDir}/{testFileName}/{arg}{ext}'
 })

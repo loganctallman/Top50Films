@@ -1,0 +1,86 @@
+name: Visual Regression
+
+on:
+  push:
+    branches: [main, Dev]
+  pull_request:
+
+# Cancel in-progress runs on new pushes to the same branch
+concurrency:
+  group: visual-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual:
+    name: Visual Regression Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright + system deps
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system deps (cached browsers)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Build app
+        run: npm run build
+
+      # Informational — continue-on-error ensures a diff does not block deployment.
+      # Review the uploaded artifact to decide whether the change is intentional
+      # before merging.
+      - name: Run visual regression tests
+        id: visual_tests
+        run: npm run test:visual
+        continue-on-error: true
+
+      - name: Write visual summary
+        if: always()
+        run: |
+          echo "## Visual Regression" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.visual_tests.outcome }}" == "failure" ]; then
+            echo "⚠️ **Visual diffs detected.** Download the artifact and review before merging." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ All 8 snapshots match baseline." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Page | Snapshot |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Home | home.png |" >> $GITHUB_STEP_SUMMARY
+          echo "| Add to List — browse | add-genre-browse.png |" >> $GITHUB_STEP_SUMMARY
+          echo "| Add to List — search | add-search-results.png |" >> $GITHUB_STEP_SUMMARY
+          echo "| My List — empty | my-list-empty.png |" >> $GITHUB_STEP_SUMMARY
+          echo "| My List — populated | my-list-populated.png |" >> $GITHUB_STEP_SUMMARY
+          echo "| Notifications — empty | notifications-empty.png |" >> $GITHUB_STEP_SUMMARY
+          echo "| Notifications — populated | notifications-populated.png |" >> $GITHUB_STEP_SUMMARY
+          echo "| Settings | settings.png |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Results are informational — failures do not block deployment._" >> $GITHUB_STEP_SUMMARY
+          echo "_To update baselines: \`npm run test:visual -- --update-snapshots\`_" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload visual report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-report
+          path: playwright-report/
+          retention-days: 30
