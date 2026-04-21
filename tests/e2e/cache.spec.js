@@ -94,7 +94,7 @@ test('fresh cache entries suppress /api/movie calls entirely', async ({ page }) 
   // Wait for app to be interactive
   await expect(page.locator('nav')).toBeVisible()
   // Allow any async reactive effects to settle
-  await page.waitForTimeout(500)
+  await page.waitForLoadState('networkidle')
 
   expect(tracker.getCount()).toBe(0)
 })
@@ -118,7 +118,7 @@ test('missing cache entries trigger one /api/movie fetch per film', async ({ pag
 
   await page.goto('/')
   await expect(page.locator('nav')).toBeVisible()
-  await page.waitForTimeout(500)
+  await page.waitForLoadState('networkidle')
 
   expect(tracker.getCount()).toBe(2)
 })
@@ -152,7 +152,7 @@ test('expired cache entries are re-fetched', async ({ page }) => {
 
   await page.goto('/')
   await expect(page.locator('nav')).toBeVisible()
-  await page.waitForTimeout(500)
+  await page.waitForLoadState('networkidle')
 
   expect(tracker.getCount()).toBe(1)
 })
@@ -187,7 +187,7 @@ test('only stale films are re-fetched when cache is mixed', async ({ page }) => 
 
   await page.goto('/')
   await expect(page.locator('nav')).toBeVisible()
-  await page.waitForTimeout(500)
+  await page.waitForLoadState('networkidle')
 
   expect(tracker.getCount()).toBe(1)
   expect(tracker.getCalls()[0]).toContain('/api/movie/278')
@@ -240,7 +240,7 @@ test('adding a new film to favorites triggers exactly one movie fetch for that f
   await expect(page.getByText('Added!')).toBeVisible()
 
   // Wait for reactive cache refresh
-  await page.waitForTimeout(500)
+  await page.waitForLoadState('networkidle')
 
   // Exactly one new fetch should have been made (for film 278)
   const newCalls = movieCallUrls.slice(countBeforeAdd)
@@ -271,7 +271,7 @@ test('provider data is persisted to localStorage after a cache refresh', async (
 
   await page.goto('/')
   await expect(page.locator('nav')).toBeVisible()
-  await page.waitForTimeout(500)
+  await page.waitForLoadState('networkidle')
 
   // Verify streaming_cache was written to localStorage with the fetched providers
   const raw = await page.evaluate(() => localStorage.getItem('streaming_cache'))
