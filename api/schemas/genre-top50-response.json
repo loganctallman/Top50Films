@@ -1,0 +1,10 @@
+{
+  "$id": "genre-top50-response",
+  "type": "object",
+  "required": ["results", "total_results"],
+  "properties": {
+    "results":       { "type": "array", "items": { "$ref": "film" } },
+    "total_results": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": false
+}

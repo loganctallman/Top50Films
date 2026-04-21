@@ -1,0 +1,9 @@
+{
+  "$id": "suggestions-response",
+  "type": "object",
+  "required": ["results"],
+  "properties": {
+    "results": { "type": "array", "items": { "$ref": "film" } }
+  },
+  "additionalProperties": false
+}
