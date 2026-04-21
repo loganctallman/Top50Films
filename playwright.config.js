@@ -16,11 +16,13 @@ export default defineConfig({
   projects: [
     // Desktop browsers
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox',  use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit',   use: { ...devices['Desktop Safari'] } },
+    // Visual regression is excluded from all non-Chromium projects at the config
+    // level — more robust than a runtime test.skip since it survives project renames.
+    { name: 'firefox',       use: { ...devices['Desktop Firefox'] }, testIgnore: /visual\.spec/ },
+    { name: 'webkit',        use: { ...devices['Desktop Safari'] },  testIgnore: /visual\.spec/ },
     // Mobile browsers
-    { name: 'mobile-chrome', use: { ...devices['Pixel 5'] } },
-    { name: 'mobile-safari', use: { ...devices['iPhone 14'] } }
+    { name: 'mobile-chrome', use: { ...devices['Pixel 5'] },         testIgnore: /visual\.spec/ },
+    { name: 'mobile-safari', use: { ...devices['iPhone 14'] },       testIgnore: /visual\.spec/ }
   ],
   webServer: {
     command: 'npm run build && npx vite preview --port 4173',

@@ -253,15 +253,16 @@ Three factors make screenshots non-deterministic in a data-driven app. All three
 
 ### Browser scope
 
-Visual regression runs on **Chromium only**. The skip is enforced by project name, not browser engine:
+Visual regression runs on **Chromium only**. Exclusion is enforced at the config level via `testIgnore` on every non-Chromium project:
 
 ```js
-test.beforeEach(({}, testInfo) => {
-  test.skip(testInfo.project.name !== 'chromium', 'Visual regression is Chromium-only')
-})
+{ name: 'firefox',       use: { ...devices['Desktop Firefox'] }, testIgnore: /visual\.spec/ },
+{ name: 'webkit',        use: { ...devices['Desktop Safari'] },  testIgnore: /visual\.spec/ },
+{ name: 'mobile-chrome', use: { ...devices['Pixel 5'] },         testIgnore: /visual\.spec/ },
+{ name: 'mobile-safari', use: { ...devices['iPhone 14'] },       testIgnore: /visual\.spec/ }
 ```
 
-This correctly excludes `mobile-chrome` (which also uses the Chromium engine but has a different viewport).
+Config-level exclusion is preferred over a runtime `test.skip` because it is enforced at collection time (the file is never loaded for non-Chromium projects) and does not depend on a string match against the project name surviving a rename.
 
 ### Why informational, not gating
 

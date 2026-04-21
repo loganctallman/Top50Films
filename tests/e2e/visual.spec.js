@@ -8,13 +8,6 @@ const POSTER_PLACEHOLDER = Buffer.from(
   'base64'
 )
 
-// Visual regression runs on Chromium only — baselines are Chromium-generated.
-// Firefox and WebKit render fonts differently; separate baselines would be
-// needed to support them, which is a future enhancement.
-test.beforeEach(({}, testInfo) => {
-  test.skip(testInfo.project.name !== 'chromium', 'Visual regression is Chromium-only — baselines are desktop Chromium')
-})
-
 // Snapshot tolerance: 3% of pixels may differ to absorb cross-platform
 // font-rendering differences (macOS vs Linux CI runner).
 const SNAP = { maxDiffPixelRatio: 0.03, animations: 'disabled' }
