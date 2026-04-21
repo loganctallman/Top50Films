@@ -1,0 +1,21 @@
+{
+  "$id": "person-search-response",
+  "type": "object",
+  "required": ["results"],
+  "properties": {
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "known_for_department"],
+        "properties": {
+          "id":                   { "type": "integer" },
+          "name":                 { "type": "string", "minLength": 1 },
+          "known_for_department": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

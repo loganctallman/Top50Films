@@ -1,0 +1,22 @@
+{
+  "$id": "providers-response",
+  "type": "object",
+  "required": ["results"],
+  "properties": {
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["provider_id", "provider_name"],
+        "properties": {
+          "provider_id":       { "type": "integer" },
+          "provider_name":     { "type": "string", "minLength": 1 },
+          "logo_path":         { "type": ["string", "null"] },
+          "display_priority":  { "type": "integer" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

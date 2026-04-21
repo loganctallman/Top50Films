@@ -18,6 +18,8 @@ This document describes the testing philosophy, architecture, tooling, and CI/CD
         ├─────────────────────────────────┤
         │      E2E / Browser (Primary)    │  ← Playwright Chromium
         ├─────────────────────────────────┤
+        │   API Contract Validation       │  ← JSON Schema + AJV (handler output + upstream monitor)
+        ├─────────────────────────────────┤
         │      API / Integration          │  ← Vitest + MSW (serverless handlers)
         ├─────────────────────────────────┤
         │      Unit / Component           │  ← Vitest + Testing Library
@@ -30,6 +32,7 @@ Each layer answers a different question:
 |---|---|---|
 | Unit / Component | Does the logic do what it claims? | Pure functions, Svelte components in isolation |
 | API / Integration | Do the serverless handlers respond correctly? | Vercel edge functions, input validation, response shape |
+| API Contract Validation | Do our handler outputs still match the agreed schema? Is TMDB still returning the fields we depend on? | JSON Schema compliance, E2E fixture drift, weekly upstream probe |
 | E2E (Primary) | Does the app work end-to-end in a real browser? | Full user journeys, routing, state persistence |
 | Cross-Browser & Mobile | Does it work the same everywhere? | Firefox, WebKit, Pixel 5, iPhone 14 |
 | Visual Regression | Did the UI change unexpectedly? | Screenshot comparison across all pages and key states |
@@ -46,6 +49,7 @@ Each layer answers a different question:
 | **MSW (Mock Service Worker)** | API mocking at the network layer — same code path as production |
 | **Playwright** | E2E browser automation — Chromium, Firefox, WebKit, mobile devices |
 | **axe-playwright** | Automated WCAG 2.1 AA accessibility auditing inside E2E runs |
+| **AJV (Another JSON Schema Validator)** | JSON Schema v7 validation for handler output and upstream contract monitoring |
 | **@lhci/cli** | Lighthouse CI with assertion-level performance budget enforcement |
 | **@vitest/coverage-v8** | V8 native coverage instrumentation — no Babel overhead |
 
@@ -109,7 +113,78 @@ MSW intercepts at the HTTP level, meaning the production `fetch` code path runs 
 
 ### Note on deployment
 
-`api/**/*.test.js` files are excluded from Vercel deployments via `.vercelignore`. Without this, Vercel would count test files as serverless functions and exceed the Hobby plan limit of 12.
+`api/**/*.test.js` and `api/schemas/` are excluded from Vercel deployments via `.vercelignore`. Without this, Vercel would count test files and schema helpers as serverless functions and exceed the Hobby plan limit of 12.
+
+---
+
+## API Contract Validation (`api/schemas/`)
+
+**Runner:** Vitest (unit) + Node.js (upstream monitor) · **Workflow:** `contract-monitor.yml` · **CI behaviour:** Gates deploy (unit) / Weekly schedule (monitor)
+
+Contract validation sits between API/integration tests and E2E. It answers two questions that neither layer handles well: *did our normalisation logic stop emitting a required field?* and *did TMDB silently change the fields we depend on?*
+
+### Two validation layers
+
+#### Layer 1 — Handler output schema compliance (unit tests)
+
+`api/schemas/contracts.test.js` invokes each handler with realistic mocked TMDB data and validates the normalised response body against the JSON Schema for that endpoint. Runs on every push as part of the normal unit test suite.
+
+| Test | Schema |
+|---|---|
+| `GET /api/providers` | `providers-response` |
+| `GET /api/genre-top50` | `genre-top50-response` |
+| `GET /api/search` | `search-response` |
+| `GET /api/suggestions` | `suggestions-response` |
+| `GET /api/movie/:id` | `movie-response` |
+| `GET /api/person/search` | `person-search-response` |
+| `GET /api/person/:id` | `person-filmography-response` |
+
+#### Layer 2 — E2E fixture drift detection (unit tests)
+
+The same `contracts.test.js` file validates the MSW/Playwright fixtures in `tests/e2e/helpers.js` against the same schemas. This catches mock data drifting out of sync with the real handler contract — a common failure mode as handlers evolve.
+
+#### Layer 3 — TMDB upstream contract monitor (weekly CI job)
+
+`.github/scripts/contract-monitor.js` calls the **real TMDB API** (no mocking) with known-stable IDs:
+
+| Resource | TMDB ID |
+|---|---|
+| The Godfather | 238 |
+| Francis Ford Coppola | 1032 |
+| Drama genre | 18 |
+
+It passes each response through the handler's normalisation logic and validates the output against the same JSON Schemas. If any violation is found, the job writes a `contract-failures.txt` file and opens a deduplicated GitHub Issue labelled `contract-violation`.
+
+### Schema architecture
+
+Schemas live in `api/schemas/` and use `$ref` composition to avoid duplication:
+
+```
+film.json              ← reusable film object (tmdb_id, title, year, vote_average, watch_providers…)
+watch-provider.json    ← reusable provider object (provider_id, name, logo_path, type enum)
+│
+├── genre-top50-response.json   $ref film
+├── search-response.json        $ref film
+├── suggestions-response.json   $ref film
+├── movie-response.json         $ref watch-provider
+└── person-filmography-response.json  $ref film
+```
+
+All schemas use `additionalProperties: false` so that new unexpected fields from TMDB surface immediately rather than silently passing validation.
+
+### Running
+
+```bash
+# Handler output + fixture drift (runs with the normal unit suite)
+npm run test:unit
+
+# Upstream monitor against real TMDB API (requires key)
+TMDB_API_KEY=<key> node .github/scripts/contract-monitor.js
+```
+
+### Why the upstream monitor runs on a schedule, not on every push
+
+TMDB's API is stable but not versioned. Changes are rare and not announced. Running on a weekly schedule is sufficient to catch silent upstream breakage before it affects users, without adding a network-dependent step to the hot deploy path.
 
 ---
 
@@ -361,6 +436,7 @@ push / PR
     │
     ├── unit (Vitest)                      gates deploy
     │     └─ vitest run
+    │         includes contracts.test.js (handler schema + fixture drift)
     │
     ├── e2e (Playwright — Chromium only)   gates deploy
     │     └─ playwright test --project=chromium
@@ -380,6 +456,13 @@ push / PR
     │
     └── deploy (Vercel) — main branch only, needs unit + e2e green
           └─ vercel build --prod && vercel deploy --prebuilt
+
+weekly schedule (Monday 08:00 UTC)
+    │
+    └── contract-monitor (Node.js)         opens GitHub Issue on failure
+          └─ real TMDB API calls → normalise → validate against JSON Schemas
+              known-stable IDs: Godfather/238, Coppola/1032, Drama/18
+              failure artifact: contract-failures.txt (30d)
 ```
 
 ### Key pipeline decisions
@@ -387,10 +470,11 @@ push / PR
 | Decision | Rationale |
 |---|---|
 | Chromium-only gates deploy | Keeps the deploy-blocking pipeline under 5 minutes |
+| Contract unit tests gate deploy; upstream monitor does not | Schema compliance of our own code must be fast and reliable; upstream TMDB health is checked weekly to avoid network dependency on the hot deploy path |
 | Cross-browser, visual, performance are informational | Failures are real signals but carry higher false-positive rates; humans review before merging |
 | E2E uses `--project=chromium` explicitly in CI | Adding new Playwright projects can never accidentally affect deploy gate speed |
 | Vercel CLI pinned to `latest` | Vercel bumps minimum CLI version requirements without notice; pinning causes deploy failures |
-| `api/**/*.test.js` excluded via `.vercelignore` | Prevents test files being counted as serverless functions (Hobby plan limit: 12) |
+| `api/**/*.test.js` and `api/schemas/` excluded via `.vercelignore` | Prevents test files and schema helpers being counted as serverless functions (Hobby plan limit: 12) |
 
 ---
 
@@ -448,6 +532,7 @@ git add tests/snapshots/ && git commit -m "chore: update visual baselines"
 | Logic / service unit tests | Co-located with source (`*.test.js` next to `*.js`) |
 | Component tests | Co-located with the Svelte component |
 | API handler tests | Co-located with the handler (`api/`) |
+| API contract tests + schemas | `api/schemas/` |
 | E2E specs | `tests/e2e/` |
 | Visual baselines | `tests/snapshots/visual.spec.js/` |
 
@@ -478,7 +563,6 @@ git add tests/snapshots/ && git commit -m "chore: update visual baselines"
 | Coverage gating in CI | Medium | Infrastructure ready; decision pending on per-module thresholds |
 | Cross-browser baseline calibration | Medium | Currently all cross-browser failures are informational; needs threshold review after 2–4 weeks of data |
 | Visual regression — multi-browser baselines | Low | Currently Chromium-only; Firefox/WebKit baselines would require separate snapshot sets |
-| API contract validation | Low | No formal schema pinning against TMDB API versions |
 | WebKit on macOS 12 | Low | Local WebKit testing not available on macOS 12; resolved by upgrading OS |
 
 ---

@@ -1,0 +1,15 @@
+{
+  "$id": "film",
+  "type": "object",
+  "required": ["tmdb_id", "title", "genre_ids", "vote_average", "watch_providers"],
+  "properties": {
+    "tmdb_id":       { "type": "integer" },
+    "title":         { "type": "string", "minLength": 1 },
+    "year":          { "type": ["string", "null"] },
+    "poster_path":   { "type": ["string", "null"] },
+    "genre_ids":     { "type": "array", "items": { "type": "integer" } },
+    "vote_average":  { "type": "number", "minimum": 0, "maximum": 10 },
+    "vote_count":    { "type": "integer", "minimum": 0 },
+    "watch_providers": { "type": "array" }
+  }
+}
