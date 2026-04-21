@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { validate, SCHEMAS } from './validate.js'
 import { fixtures } from '../../tests/e2e/helpers.js'
 
+
 import providersHandler    from '../providers.js'
 import genreTop50Handler   from '../genre-top50.js'
 import searchHandler       from '../search.js'
@@ -74,9 +75,9 @@ const TMDB_MOVIE_DETAIL = {
     results: {
       US: {
         link: 'https://www.themoviedb.org/movie/238/watch',
-        flatrate: [{ provider_id: 8, provider_name: 'Netflix', logo_path: '/netflix.jpg' }],
-        free: [],
-        ads: []
+        flatrate: [{ provider_id: 8,  provider_name: 'Netflix', logo_path: '/netflix.jpg' }],
+        free:     [{ provider_id: 73, provider_name: 'Tubi TV', logo_path: '/tubi.jpg'    }],
+        ads:      [{ provider_id: 283,provider_name: 'Crackle', logo_path: '/crackle.jpg' }]
       }
     }
   }
@@ -165,7 +166,52 @@ describe('Handler output — schema compliance', () => {
 })
 
 // ---------------------------------------------------------------------------
-// 2. Fixture drift detection
+// 2. Handler error responses — error envelope contract
+// ---------------------------------------------------------------------------
+
+describe('Handler error responses — error-response schema compliance', () => {
+  it('GET /api/search 400 (missing query) matches error-response schema', async () => {
+    const res = mockRes()
+    await searchHandler({ query: {} }, res)
+    expect(res._status).toBe(400)
+    expect(() => validate(SCHEMAS.ERROR, res._body)).not.toThrow()
+  })
+
+  it('GET /api/search 503 (upstream failure) matches error-response schema', async () => {
+    mockFetch({}, 503)
+    const res = mockRes()
+    await searchHandler({ query: { query: 'godfather' } }, res)
+    expect(res._status).toBe(503)
+    expect(() => validate(SCHEMAS.ERROR, res._body)).not.toThrow()
+  })
+
+  it('GET /api/genre-top50 503 (upstream failure) matches error-response schema', async () => {
+    mockFetch({}, 503)
+    const res = mockRes()
+    await genreTop50Handler({ query: {} }, res)
+    expect(res._status).toBe(503)
+    expect(() => validate(SCHEMAS.ERROR, res._body)).not.toThrow()
+  })
+
+  it('GET /api/movie/:id 503 (upstream failure) matches error-response schema', async () => {
+    mockFetch({}, 503)
+    const res = mockRes()
+    await movieHandler({ query: { id: '238' } }, res)
+    expect(res._status).toBe(503)
+    expect(() => validate(SCHEMAS.ERROR, res._body)).not.toThrow()
+  })
+
+  it('GET /api/person/search 503 (upstream failure) matches error-response schema', async () => {
+    mockFetch({}, 503)
+    const res = mockRes()
+    await personSearchHandler({ query: { query: 'coppola' } }, res)
+    expect(res._status).toBe(503)
+    expect(() => validate(SCHEMAS.ERROR, res._body)).not.toThrow()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 3. Fixture drift detection
 // ---------------------------------------------------------------------------
 
 describe('E2E fixture drift — fixtures satisfy handler schemas', () => {
@@ -173,8 +219,16 @@ describe('E2E fixture drift — fixtures satisfy handler schemas', () => {
     expect(() => validate(SCHEMAS.PROVIDERS, fixtures.providers)).not.toThrow()
   })
 
+  it('fixtures.genreResults satisfies genre-top50-response schema', () => {
+    expect(() => validate(SCHEMAS.GENRE_TOP50, fixtures.genreResults)).not.toThrow()
+  })
+
   it('fixtures.searchResults satisfies search-response schema', () => {
     expect(() => validate(SCHEMAS.SEARCH, fixtures.searchResults)).not.toThrow()
+  })
+
+  it('fixtures.suggestions satisfies suggestions-response schema', () => {
+    expect(() => validate(SCHEMAS.SUGGESTIONS, fixtures.suggestions)).not.toThrow()
   })
 
   it('fixtures.movieWithProviders satisfies movie-response schema', () => {
