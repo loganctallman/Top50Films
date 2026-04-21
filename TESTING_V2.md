@@ -123,25 +123,44 @@ MSW intercepts at the HTTP level, meaning the production `fetch` code path runs 
 
 Contract validation sits between API/integration tests and E2E. It answers two questions that neither layer handles well: *did our normalisation logic stop emitting a required field?* and *did TMDB silently change the fields we depend on?*
 
-### Two validation layers
+### Validation layers
+
+#### Layer 0 — validate() utility tests (`api/schemas/validate.test.js`)
+
+`validate.test.js` tests the AJV helper itself — the detection mechanism that all other contract tests depend on. Covers: throws on violation with the correct message format (schema ID + field path), `(root)` fallback when `instancePath` is empty, nested field path in message, null/undefined data, unregistered schema IDs, and a SCHEMAS exhaustiveness check that verifies every `SCHEMAS` constant value resolves to a registered AJV schema (so a new schema file added to the registration list but not to the `SCHEMAS` export is caught immediately).
 
 #### Layer 1 — Handler output schema compliance (unit tests)
 
-`api/schemas/contracts.test.js` invokes each handler with realistic mocked TMDB data and validates the normalised response body against the JSON Schema for that endpoint. Runs on every push as part of the normal unit test suite.
+`api/schemas/contracts.test.js` invokes each handler with realistic mocked TMDB data and validates both the **200 response** and **error envelope** against the appropriate JSON Schema. Runs on every push as part of the normal unit test suite.
 
 | Test | Schema |
 |---|---|
-| `GET /api/providers` | `providers-response` |
-| `GET /api/genre-top50` | `genre-top50-response` |
-| `GET /api/search` | `search-response` |
-| `GET /api/suggestions` | `suggestions-response` |
-| `GET /api/movie/:id` | `movie-response` |
-| `GET /api/person/search` | `person-search-response` |
-| `GET /api/person/:id` | `person-filmography-response` |
+| `GET /api/providers` — 200 | `providers-response` |
+| `GET /api/genre-top50` — 200 | `genre-top50-response` |
+| `GET /api/search` — 200 | `search-response` |
+| `GET /api/suggestions` — 200 | `suggestions-response` |
+| `GET /api/movie/:id` — 200 | `movie-response` |
+| `GET /api/person/search` — 200 | `person-search-response` |
+| `GET /api/person/:id` — 200 | `person-filmography-response` |
+| `GET /api/search` — 400 (missing param) | `error-response` |
+| `GET /api/search` — 503 (upstream failure) | `error-response` |
+| `GET /api/genre-top50` — 503 | `error-response` |
+| `GET /api/movie/:id` — 503 | `error-response` |
+| `GET /api/person/search` — 503 | `error-response` |
 
 #### Layer 2 — E2E fixture drift detection (unit tests)
 
-The same `contracts.test.js` file validates the MSW/Playwright fixtures in `tests/e2e/helpers.js` against the same schemas. This catches mock data drifting out of sync with the real handler contract — a common failure mode as handlers evolve.
+The same `contracts.test.js` file validates all MSW/Playwright fixtures in `tests/e2e/helpers.js` against the same schemas. This catches mock data drifting out of sync with the real handler contract — a common failure mode as handlers evolve. During implementation, this layer caught a real bug: `fixtures.genreResults` contained `total_pages` and `page` fields that the `genre-top50` handler never returns, silently violating `additionalProperties: false`.
+
+| Fixture | Schema |
+|---|---|
+| `fixtures.providers` | `providers-response` |
+| `fixtures.genreResults` | `genre-top50-response` |
+| `fixtures.searchResults` | `search-response` |
+| `fixtures.suggestions` | `suggestions-response` |
+| `fixtures.movieWithProviders` | `movie-response` |
+| `fixtures.personSearch` | `person-search-response` |
+| `fixtures.personFilmography` | `person-filmography-response` |
 
 #### Layer 3 — TMDB upstream contract monitor (weekly CI job)
 
@@ -162,12 +181,13 @@ Schemas live in `api/schemas/` and use `$ref` composition to avoid duplication:
 ```
 film.json              ← reusable film object (tmdb_id, title, year, vote_average, watch_providers…)
 watch-provider.json    ← reusable provider object (provider_id, name, logo_path, type enum)
+error-response.json    ← shared error envelope { error: true, message, status }
 │
-├── genre-top50-response.json   $ref film
-├── search-response.json        $ref film
-├── suggestions-response.json   $ref film
-├── movie-response.json         $ref watch-provider
-└── person-filmography-response.json  $ref film
+├── genre-top50-response.json        $ref film
+├── search-response.json             $ref film
+├── suggestions-response.json        $ref film
+├── movie-response.json              $ref watch-provider
+└── person-filmography-response.json $ref film
 ```
 
 All schemas use `additionalProperties: false` so that new unexpected fields from TMDB surface immediately rather than silently passing validation.
@@ -532,7 +552,7 @@ git add tests/snapshots/ && git commit -m "chore: update visual baselines"
 | Logic / service unit tests | Co-located with source (`*.test.js` next to `*.js`) |
 | Component tests | Co-located with the Svelte component |
 | API handler tests | Co-located with the handler (`api/`) |
-| API contract tests + schemas | `api/schemas/` |
+| API contract tests, schemas, validate utility | `api/schemas/` |
 | E2E specs | `tests/e2e/` |
 | Visual baselines | `tests/snapshots/visual.spec.js/` |
 
