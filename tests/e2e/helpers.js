@@ -27,7 +27,14 @@ export const fixtures = {
       { tmdb_id: 238, title: 'The Godfather',           year: '1972', poster_path: '/path.jpg',  genre_ids: [18, 80], vote_average: 9.2, vote_count: 18000, watch_providers: [] },
       { tmdb_id: 278, title: 'The Shawshank Redemption',year: '1994', poster_path: '/path2.jpg', genre_ids: [18],     vote_average: 9.3, vote_count: 25000, watch_providers: [] }
     ],
-    total_results: 2, total_pages: 1, page: 1
+    total_results: 2
+  },
+
+  suggestions: {
+    results: [
+      { tmdb_id: 238, title: 'The Godfather',           year: '1972', poster_path: '/path.jpg',  genre_ids: [18, 80], vote_average: 9.2, vote_count: 18000, watch_providers: [] },
+      { tmdb_id: 278, title: 'The Shawshank Redemption',year: '1994', poster_path: '/path2.jpg', genre_ids: [18],     vote_average: 9.3, vote_count: 25000, watch_providers: [] }
+    ]
   },
 
   searchResults: {
@@ -153,6 +160,10 @@ export async function mockAllApis(page) {
 
   await page.route('**/api/search**', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.searchResults) })
+  )
+
+  await page.route('**/api/suggestions**', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.suggestions) })
   )
 
   await page.route('**/api/movie/**', route =>

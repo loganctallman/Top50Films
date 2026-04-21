@@ -14,7 +14,8 @@ const ajv = new Ajv({ allErrors: true })
   'suggestions-response',
   'movie-response',
   'person-search-response',
-  'person-filmography-response'
+  'person-filmography-response',
+  'error-response'
 ].forEach(name => ajv.addSchema(require(`./${name}.json`)))
 
 /**
@@ -38,5 +39,6 @@ export const SCHEMAS = {
   SUGGESTIONS:         'suggestions-response',
   MOVIE:               'movie-response',
   PERSON_SEARCH:       'person-search-response',
-  PERSON_FILMOGRAPHY:  'person-filmography-response'
+  PERSON_FILMOGRAPHY:  'person-filmography-response',
+  ERROR:               'error-response'
 }
