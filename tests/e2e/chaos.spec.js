@@ -128,6 +128,40 @@ test.describe('Chaos — list full (50 favorites)', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Mock infrastructure — LIFO override guard
+// ---------------------------------------------------------------------------
+
+test.describe('Mock infrastructure — overrideMock LIFO priority', () => {
+  test('overrideMock registered after mockAllApis takes priority over the baseline', async ({ page }) => {
+    await skipOnboarding(page)
+    await mockAllApis(page)
+    // Registered AFTER mockAllApis → must be checked first (LIFO).
+    // Baseline returns searchResults (two films); this override returns searchEmpty.
+    // If LIFO is broken the baseline wins and no-results state never appears.
+    await overrideMock(page, '/api/search', { data: fixtures.searchEmpty })
+    await page.goto('/#/add')
+    await page.getByRole('searchbox').fill('godfather')
+    await expect(page.getByText('No films found for that search.')).toBeVisible()
+  })
+
+  test('person/search override takes priority over the general /api/person/ baseline', async ({ page }) => {
+    await skipOnboarding(page)
+    await mockAllApis(page)
+    // /api/person/search is a substring of /api/person/ — if the more-general wrapper
+    // runs first it returns the personFilmography fixture instead of personSearch.
+    // Override person/search to return empty so we can detect which layer won.
+    await overrideMock(page, '/api/person/search', { data: { results: [] } })
+    await page.goto('/#/add')
+    await page.getByRole('button', { name: 'Film', exact: true }).click()
+    await page.getByText('Director / Actor').click()
+    await page.getByRole('searchbox').fill('coppola')
+    // Empty person results → 'no-results' state. If /api/person/ baseline had won
+    // the personFilmography fixture would populate person cards, not this message.
+    await expect(page.getByText('No results found for that name.')).toBeVisible()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Duplicate add attempt
 // ---------------------------------------------------------------------------
 
