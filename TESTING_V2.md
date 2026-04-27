@@ -10,6 +10,8 @@ This document describes the testing philosophy, architecture, tooling, and CI/CD
 
 ```
         ┌─────────────────────────────────┐
+        │    Post-Deploy Smoke Tests      │  ← Postman (Newman) — live production
+        ├─────────────────────────────────┤
         │      Performance Budget         │  ← Lighthouse CI
         ├─────────────────────────────────┤
         │      Visual Regression          │  ← Playwright screenshots
@@ -37,6 +39,7 @@ Each layer answers a different question:
 | Cross-Browser & Mobile | Does it work the same everywhere? | Firefox, WebKit, Pixel 5, iPhone 14 |
 | Visual Regression | Did the UI change unexpectedly? | Screenshot comparison across all pages and key states |
 | Performance Budget | Does the app stay within delivery constraints? | Core Web Vitals, bundle size, Lighthouse scores |
+| Post-Deploy Smoke Tests | Did the Vercel build ship clean to production? | Live HTTP assertions against deployed endpoints — no mocks, no staging |
 
 ---
 
@@ -52,6 +55,7 @@ Each layer answers a different question:
 | **AJV (Another JSON Schema Validator)** | JSON Schema v7 validation for handler output and upstream contract monitoring |
 | **@lhci/cli** | Lighthouse CI with assertion-level performance budget enforcement |
 | **@vitest/coverage-v8** | V8 native coverage instrumentation — no Babel overhead |
+| **Postman / Newman** | Post-deploy smoke test collection run against live production via Newman CLI |
 
 ---
 
@@ -426,6 +430,55 @@ npm run test:perf
 
 ---
 
+## Post-Deploy Smoke Tests
+
+**Tool:** Postman (Newman CLI) · **Collection:** `MyTop50 Smoke Test Live` · **Workflow:** `ci.yml` (smoke job) · **CI behaviour:** Gates post-deploy confidence
+
+### Purpose
+
+Every layer below this one runs against mocks, fixtures, or a local build. The smoke suite is the only layer that fires against the **live production URL** after Vercel completes a deployment. It answers the question that no amount of unit or E2E coverage can answer: *did the deployed artifact actually make it out the door intact?*
+
+Build corruption, misconfigured environment variables, and deployment-time asset resolution failures are all real failure modes that pass every pre-deploy test with flying colours and only surface when a request hits the actual CDN edge. The smoke suite catches them within seconds of deploy completion.
+
+### Collection
+
+**Name:** `MyTop50 Smoke Test Live`  
+**Collection UID:** `53659455-4f371e19-b97f-4789-a6dd-860d8cb056c8`  
+**Tests:** 9 requests covering the critical API surface exposed on production
+
+The collection lives in Postman and is fetched at CI runtime via the Postman API — no export file committed to the repo. This means updates to the collection (new assertions, adjusted thresholds) take effect on the next run without a code change.
+
+### CI integration
+
+The `smoke` job in `ci.yml` runs **after** the `deploy` job on `main` branch pushes only — it will never execute on PRs or branch pushes, since there is no production deployment to target.
+
+```yaml
+smoke:
+  needs: [deploy]
+  if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+```
+
+Newman is installed at runtime (`npm install --global newman`) and invoked with both `cli` and `junit` reporters. The JUnit XML is uploaded as a CI artifact on every run — success and failure — so result history is preserved without needing a dedicated test results service.
+
+### Required secret
+
+| Secret | Value |
+|---|---|
+| `POSTMAN_API_KEY` | Postman account API key (Account Settings → API Keys) |
+
+### Design decisions
+
+**Why Postman rather than a Playwright or Vitest HTTP assertion?**  
+The smoke suite is intentionally decoupled from the application test toolchain. Postman's collection runner provides a GUI for rapid test authoring without touching the codebase, and the Postman API makes the collection available to CI without a committed export. For a nine-request suite whose primary job is "did the API respond at all", the overhead of spinning up a browser or a Vitest environment is unjustified.
+
+**Why gate on deploy completion rather than run on a schedule?**  
+Scheduled smoke tests catch production drift but add latency between a broken deploy and the alert. Triggering immediately after deploy completion means the failure notification arrives before any user does.
+
+**Why JUnit output?**  
+JUnit XML is the de facto standard for CI test result ingestion. If the project migrates to a test results service (Datadog, BuildPulse, etc.), the artifact is already in the right format.
+
+---
+
 ## AI-Assisted QA Agents
 
 Two GitHub Actions workflows extend the suite with LLM-based analysis using the Anthropic API:
@@ -474,8 +527,12 @@ push / PR
     │     └─ [firefox] [webkit] [mobile-chrome] [mobile-safari]
     │         4 parallel jobs, per-browser report artifacts (14d)
     │
-    └── deploy (Vercel) — main branch only, needs unit + e2e green
-          └─ vercel build --prod && vercel deploy --prebuilt
+    ├── deploy (Vercel) — main branch only, needs unit + e2e green
+    │     └─ vercel build --prod && vercel deploy --prebuilt
+    │
+    └── smoke (Newman) — main branch only, needs deploy green
+          └─ newman run MyTop50 Smoke Test Live (Postman API)
+              9 requests against live production, JUnit artifact (7d)
 
 weekly schedule (Monday 08:00 UTC)
     │
@@ -495,6 +552,8 @@ weekly schedule (Monday 08:00 UTC)
 | E2E uses `--project=chromium` explicitly in CI | Adding new Playwright projects can never accidentally affect deploy gate speed |
 | Vercel CLI pinned to `latest` | Vercel bumps minimum CLI version requirements without notice; pinning causes deploy failures |
 | `api/**/*.test.js` and `api/schemas/` excluded via `.vercelignore` | Prevents test files and schema helpers being counted as serverless functions (Hobby plan limit: 12) |
+| Smoke tests trigger on deploy completion, not on a schedule | Minimises the window between a corrupt deploy and detection; a scheduled probe would alert minutes or hours later after users have already hit the failure |
+| Smoke collection fetched from Postman API at runtime | Keeps assertions in Postman's GUI for rapid iteration; no committed export file means collection updates are live without a code change |
 
 ---
 
