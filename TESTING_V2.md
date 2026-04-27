@@ -235,7 +235,7 @@ The E2E suite is the main regression safety net. Tests run against the productio
 
 ### Design conventions
 
-- **`page.route()` for API mocking** — handlers return realistic TMDB fixtures from `tests/e2e/helpers.js`. No live network calls in CI.
+- **`window.fetch` patching for API mocking** — `mockAllApis()` patches `window.fetch` in-page via `addInitScript` so all API calls return fixtures from `tests/e2e/helpers.js`, regardless of when they fire. `page.route()` / `context.route()` were abandoned after discovering that WebKit's CDP interceptors only reliably fire for navigation-time fetches; fetches triggered by user events (clicks, input, `page.reload()`) silently bypass them.
 - **Wait-for-state over fixed sleeps** — all assertions use `expect(locator).toBeVisible()` and `waitForResponse`, never `page.waitForTimeout`.
 - **Animations frozen** — `addInitScript` injects `animation-duration: 0s; transition: none` before each test.
 - **2× retries in CI** — a test that fails more than 50% of the time in a two-week window is promoted to a bug.
@@ -244,7 +244,9 @@ The E2E suite is the main regression safety net. Tests run against the productio
 
 - Fixture data matching the TMDB response shape
 - `seedStorage(page, data)` — preloads localStorage before navigation
-- `mockAllApis(page)` — registers `page.route()` stubs for all `/api/*` endpoints
+- `mockAllApis(page)` — patches `window.fetch` for all `/api/*` endpoints via `addInitScript`
+- `overrideMock(page, pattern, options)` — stacks a fetch override before `page.goto()` (used by chaos, offline, and settings tests to return error states or abort responses)
+- `overrideMockLive(page, pattern, options)` — same but via `page.evaluate()` for overrides applied after `page.goto()` within a test body
 - `makeCacheEntry(tmdb_id, providers)` — builds a fresh, non-expired streaming cache entry
 
 ### Running
@@ -346,7 +348,7 @@ Three factors make screenshots non-deterministic in a data-driven app. All three
 
 | Factor | Solution |
 |---|---|
-| External API data | All `/api/*` routes mocked with fixed fixtures via `page.route()` |
+| External API data | All `/api/*` routes mocked with fixed fixtures via `window.fetch` patch (`addInitScript`) |
 | TMDB image CDN | `**image.tmdb.org/**` intercepted and replaced with a 1×1 grey PNG placeholder |
 | Relative timestamps ("2 weeks ago") | `Date.now` frozen to `2024-01-15T12:00:00Z` via `page.addInitScript` |
 
