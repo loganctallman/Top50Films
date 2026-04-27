@@ -89,9 +89,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [unit, e2e]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    outputs:
-      url: ${{ steps.deploy.outputs.url }}
-
     steps:
       - uses: actions/checkout@v4
 
@@ -119,10 +116,7 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Deploy to production
-        id: deploy
-        run: |
-          url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
-          echo "url=$url" >> $GITHUB_OUTPUT
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -142,7 +136,7 @@ jobs:
       - name: Run MyTop50 Smoke Test Live
         run: |
           newman run "https://api.getpostman.com/collections/53659455-4f371e19-b97f-4789-a6dd-860d8cb056c8?apikey=${{ secrets.POSTMAN_API_KEY }}" \
-            --env-var "baseUrl=${{ needs.deploy.outputs.url }}" \
+            --env-var "baseUrl=https://top50films.vercel.app" \
             --reporters cli,junit \
             --reporter-junit-export newman-results.xml
 
