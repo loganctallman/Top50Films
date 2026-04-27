@@ -137,6 +137,8 @@ jobs:
         run: |
           newman run "https://api.getpostman.com/collections/53659455-4f371e19-b97f-4789-a6dd-860d8cb056c8?apikey=${{ secrets.POSTMAN_API_KEY }}" \
             --env-var "baseUrl=https://top50films.vercel.app" \
+            --env-var "stableMovieId=238" \
+            --env-var "stableGenre=drama" \
             --reporters cli,junit \
             --reporter-junit-export newman-results.xml
 
