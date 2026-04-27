@@ -159,6 +159,20 @@ test.describe('Mock infrastructure — overrideMock LIFO priority', () => {
     // the personFilmography fixture would populate person cards, not this message.
     await expect(page.getByText('No results found for that name.')).toBeVisible()
   })
+
+  test('abort: true override registered after mockAllApis takes priority (LIFO guard)', async ({ page }) => {
+    await skipOnboarding(page)
+    await mockAllApis(page)
+    // The abort branch in overrideMock returns Promise.reject — a different code path
+    // than the { data } branch. If LIFO is broken specifically for abort overrides the
+    // baseline personSearch fixture is returned instead and "Couldn't connect" never appears.
+    await overrideMock(page, '/api/person/search', { abort: true })
+    await page.goto('/#/add')
+    await page.getByRole('button', { name: 'Film', exact: true }).click()
+    await page.getByText('Director / Actor').click()
+    await page.getByRole('searchbox').fill('coppola')
+    await expect(page.getByText("Couldn't connect — check your internet connection.")).toBeVisible()
+  })
 })
 
 // ---------------------------------------------------------------------------

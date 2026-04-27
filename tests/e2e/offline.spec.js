@@ -94,6 +94,31 @@ test.describe('Offline — Notifications shows cached notifications', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Mock infrastructure — unhandled rejection sentinel positive control
+// ---------------------------------------------------------------------------
+
+test.describe('Mock infrastructure — unhandled rejection sentinel', () => {
+  test('sentinel captures a leaked rejection (positive control)', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__unhandledRejections = []
+      window.addEventListener('unhandledrejection', e => {
+        window.__unhandledRejections.push(e.reason?.message || String(e.reason))
+      })
+    })
+    await skipOnboarding(page)
+    await mockAllApis(page)
+    await page.goto('/#/add')
+    // void prevents page.evaluate from waiting on the promise, so the rejection
+    // leaks into the browser's unhandled rejection queue — exactly what the
+    // sentinel in the abort tests is designed to catch.
+    await page.evaluate(() => { void Promise.reject(new Error('sentinel-positive-control')) })
+    await page.waitForFunction(() => window.__unhandledRejections.length > 0, { timeout: 2000 })
+    const unhandled = await page.evaluate(() => window.__unhandledRejections)
+    expect(unhandled).toContain('sentinel-positive-control')
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Add to List — simulated network failure via context.route() abort
 // ---------------------------------------------------------------------------
 
