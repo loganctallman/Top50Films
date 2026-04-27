@@ -171,11 +171,12 @@ test.describe('Settings', () => {
     await page.getByRole('button', { name: 'Delete All My Data' }).click()
     await page.getByRole('button', { name: 'Yes, Delete Everything' }).click()
 
-    // deleteAllData() sets hash='#/' then reloads — wait for reload then navigate to Settings
-    // Note: addInitScript re-seeds onboarding_complete on reload, so main app re-renders,
-    // but streaming_prefs (and other data) are cleared.
-    await page.waitForLoadState('domcontentloaded')
-    await page.goto('/#/settings')
+    // deleteAllData() sets hash='#/' then reloads. Wait for networkidle so the
+    // reload is fully settled, then use a client-side hash assignment to reach
+    // Settings. page.goto() after a page-initiated reload strips the hash in
+    // WebKit, landing on the base URL and defaulting the SPA router to #/.
+    await page.waitForLoadState('networkidle')
+    await page.evaluate(() => { location.hash = '/settings' })
 
     // After reload, providers load fresh and Netflix should be unselected
     await expect(page.getByTitle('Netflix')).toBeVisible({ timeout: 10000 })
