@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { skipOnboarding, seedStorage, mockAllApis, fixtures } from './helpers.js'
+import { skipOnboarding, seedStorage, mockAllApis, overrideMock, fixtures } from './helpers.js'
 
 test.describe('Settings', () => {
   test.beforeEach(async ({ page }) => {
@@ -171,11 +171,12 @@ test.describe('Settings', () => {
     await page.getByRole('button', { name: 'Delete All My Data' }).click()
     await page.getByRole('button', { name: 'Yes, Delete Everything' }).click()
 
-    // deleteAllData() sets hash='#/' then reloads — wait for reload then navigate to Settings
-    // Note: addInitScript re-seeds onboarding_complete on reload, so main app re-renders,
-    // but streaming_prefs (and other data) are cleared.
-    await page.waitForLoadState('domcontentloaded')
-    await page.goto('/#/settings')
+    // deleteAllData() sets hash='#/' then reloads. Wait for networkidle so the
+    // reload is fully settled, then use a client-side hash assignment to reach
+    // Settings. page.goto() after a page-initiated reload strips the hash in
+    // WebKit, landing on the base URL and defaulting the SPA router to #/.
+    await page.waitForLoadState('networkidle')
+    await page.evaluate(() => { location.hash = '/settings' })
 
     // After reload, providers load fresh and Netflix should be unselected
     await expect(page.getByTitle('Netflix')).toBeVisible({ timeout: 10000 })
@@ -186,10 +187,7 @@ test.describe('Settings', () => {
 test.describe('Settings — provider loading failure', () => {
   test('shows error state when providers API fails', async ({ page }) => {
     await skipOnboarding(page)
-    // Mock providers to fail
-    await page.route('**/api/providers', route =>
-      route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: true }) })
-    )
+    await overrideMock(page, '/api/providers', { data: { error: true }, status: 503 })
     await page.goto('/#/settings')
     await expect(page.getByText('Something went wrong loading streaming services')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Try Again' })).toBeVisible()

@@ -50,14 +50,14 @@ const NETFLIX = {
  */
 async function setup(page, storageOverrides = {}) {
   // Block TMDB image CDN so posters don't depend on external availability.
-  await page.route('**image.tmdb.org/**', route =>
+  await page.context().route('**image.tmdb.org/**', route =>
     route.fulfill({ status: 200, contentType: 'image/png', body: POSTER_PLACEHOLDER })
   )
 
   await mockAllApis(page)
 
   // Home page uses /api/suggestions — not in mockAllApis, add here.
-  await page.route('**/api/suggestions**', route =>
+  await page.context().route('**/api/suggestions**', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.genreResults) })
   )
 

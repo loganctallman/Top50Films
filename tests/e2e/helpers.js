@@ -4,7 +4,11 @@
  * Strategy:
  *  - page.addInitScript() seeds localStorage BEFORE the app boots so stores
  *    pick up the values during their initial writable() call.
- *  - page.route() intercepts API calls (vite preview has no serverless fns).
+ *  - window.fetch is patched in-page via addInitScript to intercept API calls.
+ *    This is required because WebKit's CDP route interception only reliably
+ *    fires for navigation-time fetches; fetches triggered by user events (clicks,
+ *    input, page.reload) silently bypass page.route() and context.route() in WebKit.
+ *    Patching window.fetch directly is engine-agnostic and works for all fetches.
  *  - All fixture data is defined here so specs stay concise.
  */
 
@@ -146,39 +150,73 @@ export async function skipOnboarding(page) {
  * Mocks all standard API routes used by the app.
  * Call after page creation, before page.goto().
  *
- * Individual specs can override specific routes by calling page.route()
- * AFTER this function — Playwright uses the most-recently-registered handler.
+ * Individual specs can override specific routes by calling overrideMock() (before
+ * goto) or overrideMockLive() (after goto). Both wrap window.fetch so they work
+ * for all fetches, including those triggered by user events.
  */
 export async function mockAllApis(page) {
-  await page.route('**/api/providers', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.providers) })
-  )
+  // Register in ascending priority order: each overrideMock() wraps the current
+  // window.fetch, so the LAST registered pattern is checked FIRST.
+  // person/search is last so it takes priority over the more general /api/person/.
+  await overrideMock(page, '/api/search',       { data: fixtures.searchResults })
+  await overrideMock(page, '/api/movie/',        { data: fixtures.movieWithProviders })
+  await overrideMock(page, '/api/suggestions',   { data: fixtures.suggestions })
+  await overrideMock(page, '/api/genre-top50',   { data: fixtures.genreResults })
+  await overrideMock(page, '/api/providers',     { data: fixtures.providers })
+  await overrideMock(page, '/api/person/',       { data: fixtures.personFilmography })
+  await overrideMock(page, '/api/person/search', { data: fixtures.personSearch })
+}
 
-  await page.route('**/api/genre-top50**', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.genreResults) })
-  )
+/**
+ * Intercept a specific API route before page.goto() by patching window.fetch
+ * via addInitScript. Each call wraps the current window.fetch — last registered
+ * is checked first (LIFO). Must be called before page.goto().
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {string} pattern  URL substring to match (e.g. '/api/providers')
+ * @param {Object} options
+ * @param {*}       [options.data]   Response body (JSON-serialised). Default null.
+ * @param {number}  [options.status] HTTP status. Default 200.
+ * @param {boolean} [options.abort]  Reject the fetch (simulates network failure).
+ */
+export async function overrideMock(page, pattern, options = {}) {
+  const { data = null, status = 200, abort = false } = options
+  await page.addInitScript(({ pattern, data, status, abort }) => {
+    const _prev = window.fetch ? window.fetch.bind(window) : fetch.bind(window)
+    window.fetch = function (input, init) {
+      const url = typeof input === 'string' ? input : (input && input.url) || String(input)
+      if (url.includes(pattern)) {
+        if (abort) return Promise.reject(new TypeError('Failed to fetch'))
+        return Promise.resolve(new Response(JSON.stringify(data), {
+          status,
+          headers: { 'Content-Type': 'application/json' }
+        }))
+      }
+      return _prev(input, init)
+    }
+  }, { pattern, data, status, abort })
+}
 
-  await page.route('**/api/search**', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.searchResults) })
-  )
-
-  await page.route('**/api/suggestions**', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.suggestions) })
-  )
-
-  await page.route('**/api/movie/**', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.movieWithProviders) })
-  )
-
-  // Register person/:id BEFORE person/search so that the more-specific
-  // person/search route (registered last) takes priority (Playwright LIFO).
-  await page.route('**/api/person/**', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.personFilmography) })
-  )
-
-  await page.route('**/api/person/search**', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.personSearch) })
-  )
+/**
+ * Same as overrideMock but uses page.evaluate() so it can be called after
+ * page.goto() — e.g. inside a test body to override a route mid-test.
+ */
+export async function overrideMockLive(page, pattern, options = {}) {
+  const { data = null, status = 200, abort = false } = options
+  await page.evaluate(({ pattern, data, status, abort }) => {
+    const _prev = window.fetch.bind(window)
+    window.fetch = function (input, init) {
+      const url = typeof input === 'string' ? input : (input && input.url) || String(input)
+      if (url.includes(pattern)) {
+        if (abort) return Promise.reject(new TypeError('Failed to fetch'))
+        return Promise.resolve(new Response(JSON.stringify(data), {
+          status,
+          headers: { 'Content-Type': 'application/json' }
+        }))
+      }
+      return _prev(input, init)
+    }
+  }, { pattern, data, status, abort })
 }
 
 /**

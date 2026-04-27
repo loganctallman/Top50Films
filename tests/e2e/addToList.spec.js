@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockAllApis, skipOnboarding, seedStorage, fixtures } from './helpers.js'
+import { mockAllApis, skipOnboarding, seedStorage, overrideMockLive, fixtures } from './helpers.js'
 
 test.describe('Add to List', () => {
   test.beforeEach(async ({ page }) => {
@@ -63,9 +63,7 @@ test.describe('Add to List', () => {
   })
 
   test('shows empty-state when search returns no results', async ({ page }) => {
-    await page.route('**/api/search**', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.searchEmpty) })
-    )
+    await overrideMockLive(page, '/api/search', { data: fixtures.searchEmpty })
     const searchInput = page.getByRole('searchbox')
     await searchInput.fill('xyznotfound')
     await expect(page.getByText('No films found for that search.')).toBeVisible()
@@ -175,9 +173,7 @@ test.describe('Add to List', () => {
 
     test('filter shows no-results state when no films match', async ({ page }) => {
       // Override movie route to return no providers so nothing passes the filter
-      await page.route('**/api/movie/**', route =>
-        route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.movieNoProviders) })
-      )
+      await overrideMockLive(page, '/api/movie/', { data: fixtures.movieNoProviders })
       await page.getByRole('button', { name: 'Streaming filter: All' }).click()
       await page.getByRole('option', { name: 'Free & Ads' }).click()
       await expect(page.getByText(/No films available free or ad-supported/)).toBeVisible()
