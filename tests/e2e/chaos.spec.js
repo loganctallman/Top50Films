@@ -160,18 +160,40 @@ test.describe('Mock infrastructure — overrideMock LIFO priority', () => {
     await expect(page.getByText('No results found for that name.')).toBeVisible()
   })
 
-  test('abort: true override registered after mockAllApis takes priority (LIFO guard)', async ({ page }) => {
+  test('abort: true override registered after mockAllApis takes priority — direct-await path', async ({ page }) => {
+    // person/search uses a direct await so a leaked TypeError would surface as an
+    // unhandled rejection. Track it to confirm the app's catch block handles it.
+    await page.addInitScript(() => {
+      window.__unhandledRejections = []
+      window.addEventListener('unhandledrejection', e => {
+        window.__unhandledRejections.push(e.reason?.message || String(e.reason))
+      })
+    })
     await skipOnboarding(page)
     await mockAllApis(page)
-    // The abort branch in overrideMock returns Promise.reject — a different code path
-    // than the { data } branch. If LIFO is broken specifically for abort overrides the
-    // baseline personSearch fixture is returned instead and "Couldn't connect" never appears.
+    // The abort branch returns Promise.reject — different code path than { data }.
+    // If LIFO is broken the baseline personSearch fixture returns instead and
+    // "Couldn't connect" never appears.
     await overrideMock(page, '/api/person/search', { abort: true })
     await page.goto('/#/add')
     await page.getByRole('button', { name: 'Film', exact: true }).click()
     await page.getByText('Director / Actor').click()
     await page.getByRole('searchbox').fill('coppola')
     await expect(page.getByText("Couldn't connect — check your internet connection.")).toBeVisible()
+    expect(await page.evaluate(() => window.__unhandledRejections)).toHaveLength(0)
+  })
+
+  test('abort: true override registered after mockAllApis takes priority — allSettled path', async ({ page }) => {
+    await skipOnboarding(page)
+    await mockAllApis(page)
+    // /api/search is consumed via Promise.allSettled — a different consumer path than
+    // person/search (direct await). allSettled absorbs the rejection and returns empty
+    // results, so "No films found" is the observable outcome when abort wins.
+    // If LIFO is broken the baseline searchResults fixture returns instead.
+    await overrideMock(page, '/api/search', { abort: true })
+    await page.goto('/#/add')
+    await page.getByRole('searchbox').fill('godfather')
+    await expect(page.getByText('No films found for that search.')).toBeVisible()
   })
 })
 
