@@ -4,7 +4,7 @@
  * Strategy:
  *  - page.addInitScript() seeds localStorage BEFORE the app boots so stores
  *    pick up the values during their initial writable() call.
- *  - page.route() intercepts API calls (vite preview has no serverless fns).
+ *  - context.route() intercepts API calls (vite preview has no serverless fns).
  *  - All fixture data is defined here so specs stay concise.
  */
 
@@ -146,37 +146,43 @@ export async function skipOnboarding(page) {
  * Mocks all standard API routes used by the app.
  * Call after page creation, before page.goto().
  *
- * Individual specs can override specific routes by calling page.route()
+ * Individual specs can override specific routes by calling page.context().route()
  * AFTER this function — Playwright uses the most-recently-registered handler.
  */
 export async function mockAllApis(page) {
-  await page.route('**/api/providers', route =>
+  const ctx = page.context()
+
+  // Use context.route() rather than page.route() so handlers are registered at
+  // browser-context level. This avoids a WebKit timing race where fetch() calls
+  // fired in onMount during page.goto() execute before page-level CDP intercepts
+  // are established, causing requests to slip through to the vite preview server.
+  await ctx.route('**/api/providers', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.providers) })
   )
 
-  await page.route('**/api/genre-top50**', route =>
+  await ctx.route('**/api/genre-top50**', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.genreResults) })
   )
 
-  await page.route('**/api/search**', route =>
+  await ctx.route('**/api/search**', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.searchResults) })
   )
 
-  await page.route('**/api/suggestions**', route =>
+  await ctx.route('**/api/suggestions**', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.suggestions) })
   )
 
-  await page.route('**/api/movie/**', route =>
+  await ctx.route('**/api/movie/**', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.movieWithProviders) })
   )
 
   // Register person/:id BEFORE person/search so that the more-specific
   // person/search route (registered last) takes priority (Playwright LIFO).
-  await page.route('**/api/person/**', route =>
+  await ctx.route('**/api/person/**', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.personFilmography) })
   )
 
-  await page.route('**/api/person/search**', route =>
+  await ctx.route('**/api/person/search**', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.personSearch) })
   )
 }

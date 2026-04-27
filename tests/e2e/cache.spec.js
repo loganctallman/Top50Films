@@ -46,7 +46,7 @@ async function trackMovieCalls(page) {
   let count = 0
   const calls = []
 
-  await page.route('**/api/movie/**', (route, request) => {
+  await page.context().route('**/api/movie/**', (route, request) => {
     count++
     calls.push(request.url())
     route.fulfill({
@@ -86,7 +86,7 @@ test('fresh cache entries suppress /api/movie calls entirely', async ({ page }) 
   const tracker = await trackMovieCalls(page)
 
   // Mock providers (App.svelte needs this on mount)
-  await page.route('**/api/providers', route =>
+  await page.context().route('**/api/providers', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [] }) })
   )
 
@@ -112,7 +112,7 @@ test('missing cache entries trigger one /api/movie fetch per film', async ({ pag
 
   const tracker = await trackMovieCalls(page)
 
-  await page.route('**/api/providers', route =>
+  await page.context().route('**/api/providers', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [] }) })
   )
 
@@ -146,7 +146,7 @@ test('expired cache entries are re-fetched', async ({ page }) => {
 
   const tracker = await trackMovieCalls(page)
 
-  await page.route('**/api/providers', route =>
+  await page.context().route('**/api/providers', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [] }) })
   )
 
@@ -181,7 +181,7 @@ test('only stale films are re-fetched when cache is mixed', async ({ page }) => 
 
   const tracker = await trackMovieCalls(page)
 
-  await page.route('**/api/providers', route =>
+  await page.context().route('**/api/providers', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [] }) })
   )
 
@@ -218,7 +218,7 @@ test('adding a new film to favorites triggers exactly one movie fetch for that f
   // Reset and re-register tracker after mockAllApis
   let movieCallCount = 0
   const movieCallUrls = []
-  await page.route('**/api/movie/**', (route, request) => {
+  await page.context().route('**/api/movie/**', (route, request) => {
     movieCallCount++
     movieCallUrls.push(request.url())
     route.fulfill({
@@ -258,14 +258,14 @@ test('provider data is persisted to localStorage after a cache refresh', async (
     // No cache — will trigger a fetch
   })
 
-  await page.route('**/api/movie/**', route =>
+  await page.context().route('**/api/movie/**', route =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ tmdb_id: 238, title: 'The Godfather', watch_providers: [NETFLIX] })
     })
   )
-  await page.route('**/api/providers', route =>
+  await page.context().route('**/api/providers', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [] }) })
   )
 

@@ -63,7 +63,7 @@ test.describe('Add to List', () => {
   })
 
   test('shows empty-state when search returns no results', async ({ page }) => {
-    await page.route('**/api/search**', route =>
+    await page.context().route('**/api/search**', route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.searchEmpty) })
     )
     const searchInput = page.getByRole('searchbox')
@@ -175,7 +175,7 @@ test.describe('Add to List', () => {
 
     test('filter shows no-results state when no films match', async ({ page }) => {
       // Override movie route to return no providers so nothing passes the filter
-      await page.route('**/api/movie/**', route =>
+      await page.context().route('**/api/movie/**', route =>
         route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.movieNoProviders) })
       )
       await page.getByRole('button', { name: 'Streaming filter: All' }).click()

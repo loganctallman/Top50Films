@@ -20,7 +20,7 @@ test.describe('Chaos — genre top50 API error', () => {
     await skipOnboarding(page)
     await mockAllApis(page)
     // Override after mockAllApis so this handler wins (Playwright LIFO)
-    await page.route('**/api/genre-top50**', route =>
+    await page.context().route('**/api/genre-top50**', route =>
       route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: true }) })
     )
     await page.goto('/#/add')
@@ -30,7 +30,7 @@ test.describe('Chaos — genre top50 API error', () => {
   test('clicking a genre filter shows no-results state when genre API returns 503', async ({ page }) => {
     await skipOnboarding(page)
     await mockAllApis(page)
-    await page.route('**/api/genre-top50**', route =>
+    await page.context().route('**/api/genre-top50**', route =>
       route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: true }) })
     )
     await page.goto('/#/add')
@@ -43,7 +43,7 @@ test.describe('Chaos — search API error', () => {
   test('shows no-results state when search API returns 503', async ({ page }) => {
     await skipOnboarding(page)
     await mockAllApis(page)
-    await page.route('**/api/search**', route =>
+    await page.context().route('**/api/search**', route =>
       route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: true }) })
     )
     await page.goto('/#/add')
@@ -56,7 +56,7 @@ test.describe('Chaos — search returns no results', () => {
   test('shows no-results message', async ({ page }) => {
     await skipOnboarding(page)
     await mockAllApis(page)
-    await page.route('**/api/search**', route =>
+    await page.context().route('**/api/search**', route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.searchEmpty) })
     )
     await page.goto('/#/add')
@@ -70,7 +70,7 @@ test.describe('Chaos — person search API error', () => {
     await skipOnboarding(page)
     await mockAllApis(page)
     // person/search uses direct await (not allSettled) → sets personError='network'
-    await page.route('**/api/person/search**', route =>
+    await page.context().route('**/api/person/search**', route =>
       route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: true }) })
     )
     await page.goto('/#/add')
@@ -84,7 +84,7 @@ test.describe('Chaos — person search API error', () => {
 test.describe('Chaos — providers API error on Settings', () => {
   test('shows error state and Try Again button', async ({ page }) => {
     await skipOnboarding(page)
-    await page.route('**/api/providers', route =>
+    await page.context().route('**/api/providers', route =>
       route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: true }) })
     )
     await page.goto('/#/settings')

@@ -8,7 +8,7 @@ import { skipOnboarding, seedStorage, mockAllApis, makeCacheEntry } from './help
  *  - For pages that depend on localStorage only (My List, Notifications) we
  *    use context.setOffline(true) — these pages never need network after the
  *    initial app shell load.
- *  - For pages that make API calls on mount (Add to List) we use page.route()
+ *  - For pages that make API calls on mount (Add to List) we use context.route()
  *    to abort requests, which is more reliable than context.setOffline in
  *    Playwright headless (where the SW may not have had time to cache assets).
  *
@@ -40,9 +40,11 @@ test.describe('Offline — My List still shows cached favorites', () => {
     await page.goto('/#/my-list')
     await expect(page.getByText('The Godfather')).toBeVisible()
 
-    // Go offline — My List reads from localStorage only
+    // Go offline — My List reads from localStorage only.
+    // Use evaluate instead of page.goto() here: WebKit rejects full page
+    // navigations while offline, even for hash routes.
     await context.setOffline(true)
-    await page.goto('/#/my-list')
+    await page.evaluate(() => { location.hash = location.hash })
 
     await expect(page.getByText('The Godfather')).toBeVisible()
   })
@@ -80,9 +82,11 @@ test.describe('Offline — Notifications shows cached notifications', () => {
     await page.goto('/#/notifications')
     await expect(page.getByText('The Godfather')).toBeVisible()
 
-    // Go offline — notifications are computed from localStorage
+    // Go offline — notifications are computed from localStorage.
+    // Use evaluate instead of page.goto() here: WebKit rejects full page
+    // navigations while offline, even for hash routes.
     await context.setOffline(true)
-    await page.goto('/#/notifications')
+    await page.evaluate(() => { location.hash = location.hash })
 
     await expect(page.getByText('The Godfather')).toBeVisible()
     await expect(page.getByText('Netflix')).toBeVisible()
@@ -90,16 +94,16 @@ test.describe('Offline — Notifications shows cached notifications', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Add to List — simulated network failure via page.route() abort
+// Add to List — simulated network failure via context.route() abort
 // ---------------------------------------------------------------------------
 
 test.describe('Offline — Add to List degrades gracefully when API fails', () => {
   test('shows no-results state when genre API calls are aborted', async ({ page }) => {
     await skipOnboarding(page)
     // Route genre calls to abort (simulates network failure)
-    await page.route('**/api/genre-top50**', route => route.abort())
+    await page.context().route('**/api/genre-top50**', route => route.abort())
     // Providers and movie calls still work (App.svelte needs providers)
-    await page.route('**/api/providers', route =>
+    await page.context().route('**/api/providers', route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [] }) })
     )
     await page.goto('/#/add')
@@ -110,7 +114,7 @@ test.describe('Offline — Add to List degrades gracefully when API fails', () =
   test('shows no-results state when search API calls are aborted', async ({ page }) => {
     await skipOnboarding(page)
     await mockAllApis(page)
-    await page.route('**/api/search**', route => route.abort())
+    await page.context().route('**/api/search**', route => route.abort())
     await page.goto('/#/add')
     await page.getByRole('searchbox').fill('godfather')
     // allSettled captures abort as rejection → empty results → 'no-results' state
@@ -121,7 +125,7 @@ test.describe('Offline — Add to List degrades gracefully when API fails', () =
     await skipOnboarding(page)
     await mockAllApis(page)
     // person/search uses direct await (not allSettled) → catch fires → 'network' state
-    await page.route('**/api/person/search**', route => route.abort())
+    await page.context().route('**/api/person/search**', route => route.abort())
     await page.goto('/#/add')
     await page.getByRole('button', { name: 'Film', exact: true }).click()
     await page.getByText('Director / Actor').click()

@@ -187,7 +187,7 @@ test.describe('Settings — provider loading failure', () => {
   test('shows error state when providers API fails', async ({ page }) => {
     await skipOnboarding(page)
     // Mock providers to fail
-    await page.route('**/api/providers', route =>
+    await page.context().route('**/api/providers', route =>
       route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: true }) })
     )
     await page.goto('/#/settings')
