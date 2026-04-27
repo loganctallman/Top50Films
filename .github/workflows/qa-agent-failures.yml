@@ -24,6 +24,12 @@ jobs:
         with:
           node-version: 20
 
+      - name: Ensure qa-failure label exists
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create "qa-failure" --color "D93F0B" --description "CI failure flagged by QA Agent" --repo ${{ github.repository }} 2>/dev/null || true
+
       - name: Run QA agent — failure analysis
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
