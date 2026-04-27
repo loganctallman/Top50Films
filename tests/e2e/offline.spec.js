@@ -120,6 +120,14 @@ test.describe('Offline — Add to List degrades gracefully when API fails', () =
   test('shows network error when person search API calls are aborted', async ({ page }) => {
     await skipOnboarding(page)
     await mockAllApis(page)
+    // Track unhandled rejections — a leaked promise rejection means the app's catch
+    // block did not handle the TypeError thrown by overrideMock's abort: true path.
+    await page.addInitScript(() => {
+      window.__unhandledRejections = []
+      window.addEventListener('unhandledrejection', e => {
+        window.__unhandledRejections.push(e.reason?.message || String(e.reason))
+      })
+    })
     // person/search uses direct await (not allSettled) → catch fires → 'network' state
     await overrideMock(page, '/api/person/search', { abort: true })
     await page.goto('/#/add')
@@ -127,5 +135,8 @@ test.describe('Offline — Add to List degrades gracefully when API fails', () =
     await page.getByText('Director / Actor').click()
     await page.getByRole('searchbox').fill('coppola')
     await expect(page.getByText("Couldn't connect — check your internet connection.")).toBeVisible()
+    // Confirm the TypeError was caught by the app, not leaked as an unhandled rejection
+    const unhandled = await page.evaluate(() => window.__unhandledRejections)
+    expect(unhandled).toHaveLength(0)
   })
 })

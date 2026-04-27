@@ -132,10 +132,30 @@ function collectRecursive(baseDir, currentDir, result) {
     if (entry.isDirectory()) {
       collectRecursive(baseDir, fullPath, result)
     } else if (entry.name.endsWith('.test.js') || entry.name.endsWith('.spec.js')) {
-      const relPath = fullPath
-      result[relPath] = tail(readFileSync(fullPath, 'utf8'), 6_000)
+      result[fullPath] = tail(readFileSync(fullPath, 'utf8'), 4_000)
     }
   }
+}
+
+/**
+ * Returns entries from testFiles whose names overlap with any changed source file.
+ * Falls back to all test files if nothing matches (e.g. infrastructure-only PRs).
+ */
+function filterRelevantTestFiles(testFiles, changedFilenames) {
+  const changedStems = changedFilenames.map(f =>
+    f.split('/').pop().replace(/\.(svelte|js|ts)$/, '').toLowerCase()
+  )
+
+  const relevant = {}
+  for (const [path, content] of Object.entries(testFiles)) {
+    const testStem = path.split('/').pop().replace(/\.(spec|test)\.(js|ts)$/, '').toLowerCase()
+    const isRelevant = changedStems.some(stem =>
+      testStem.includes(stem) || stem.includes(testStem)
+    )
+    if (isRelevant) relevant[path] = content
+  }
+
+  return Object.keys(relevant).length > 0 ? relevant : testFiles
 }
 
 // ---------------------------------------------------------------------------
@@ -170,9 +190,11 @@ async function runFailureAnalysis() {
     }
   }))
 
-  // 3. Gather test file context
-  const testFiles = collectTestFiles()
-  const testContext = Object.entries(testFiles)
+  // 3. Gather test file context — only files whose names mention a failed job
+  const allTestFiles = collectTestFiles()
+  const failedJobNames = failed.map(j => j.name.toLowerCase())
+  const relevantForFailures = filterRelevantTestFiles(allTestFiles, failedJobNames.map(n => `${n}.js`))
+  const testContext = Object.entries(relevantForFailures)
     .map(([path, content]) => `#### ${path}\n\`\`\`js\n${content}\n\`\`\``)
     .join('\n\n')
 
@@ -293,10 +315,11 @@ async function runCoverageReview() {
     return `### ${f.status.toUpperCase()}: \`${f.filename}\`\n\`\`\`diff\n${patch}\n\`\`\``
   }).join('\n\n')
 
-  // 4. Existing test files
+  // 4. Existing test files — full content only for files relevant to the diff
   const testFiles = collectTestFiles()
   const testList = Object.keys(testFiles).map(f => `- \`${f}\``).join('\n')
-  const testContext = Object.entries(testFiles)
+  const relevantTestFiles = filterRelevantTestFiles(testFiles, relevant.map(f => f.filename))
+  const testContext = Object.entries(relevantTestFiles)
     .map(([path, content]) => `#### ${path}\n\`\`\`js\n${content}\n\`\`\``)
     .join('\n\n')
 
