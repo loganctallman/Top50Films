@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { skipOnboarding, seedStorage, mockAllApis, makeCacheEntry } from './helpers.js'
+import { skipOnboarding, seedStorage, mockAllApis, overrideMock, makeCacheEntry } from './helpers.js'
 
 /**
  * Offline / degraded-network tests.
@@ -100,12 +100,8 @@ test.describe('Offline — Notifications shows cached notifications', () => {
 test.describe('Offline — Add to List degrades gracefully when API fails', () => {
   test('shows no-results state when genre API calls are aborted', async ({ page }) => {
     await skipOnboarding(page)
-    // Route genre calls to abort (simulates network failure)
-    await page.context().route('**/api/genre-top50**', route => route.abort())
-    // Providers and movie calls still work (App.svelte needs providers)
-    await page.context().route('**/api/providers', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [] }) })
-    )
+    await overrideMock(page, '/api/providers', { data: { results: [] } })
+    await overrideMock(page, '/api/genre-top50', { abort: true })
     await page.goto('/#/add')
     // allSettled captures the abort as a rejection → empty results → 'no-results' state
     await expect(page.getByText('No results for this genre right now.')).toBeVisible()
@@ -114,7 +110,7 @@ test.describe('Offline — Add to List degrades gracefully when API fails', () =
   test('shows no-results state when search API calls are aborted', async ({ page }) => {
     await skipOnboarding(page)
     await mockAllApis(page)
-    await page.context().route('**/api/search**', route => route.abort())
+    await overrideMock(page, '/api/search', { abort: true })
     await page.goto('/#/add')
     await page.getByRole('searchbox').fill('godfather')
     // allSettled captures abort as rejection → empty results → 'no-results' state
@@ -125,7 +121,7 @@ test.describe('Offline — Add to List degrades gracefully when API fails', () =
     await skipOnboarding(page)
     await mockAllApis(page)
     // person/search uses direct await (not allSettled) → catch fires → 'network' state
-    await page.context().route('**/api/person/search**', route => route.abort())
+    await overrideMock(page, '/api/person/search', { abort: true })
     await page.goto('/#/add')
     await page.getByRole('button', { name: 'Film', exact: true }).click()
     await page.getByText('Director / Actor').click()

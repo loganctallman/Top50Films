@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { skipOnboarding, seedStorage, mockAllApis, fixtures } from './helpers.js'
+import { skipOnboarding, seedStorage, mockAllApis, overrideMock, fixtures } from './helpers.js'
 
 test.describe('Settings', () => {
   test.beforeEach(async ({ page }) => {
@@ -186,10 +186,7 @@ test.describe('Settings', () => {
 test.describe('Settings — provider loading failure', () => {
   test('shows error state when providers API fails', async ({ page }) => {
     await skipOnboarding(page)
-    // Mock providers to fail
-    await page.context().route('**/api/providers', route =>
-      route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: true }) })
-    )
+    await overrideMock(page, '/api/providers', { data: { error: true }, status: 503 })
     await page.goto('/#/settings')
     await expect(page.getByText('Something went wrong loading streaming services')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Try Again' })).toBeVisible()

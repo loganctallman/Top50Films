@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { seedStorage, mockAllApis, makeCacheEntry } from './helpers.js'
+import { seedStorage, mockAllApis, overrideMock, makeCacheEntry } from './helpers.js'
 
 /**
  * Cache / performance assertions.
@@ -41,28 +41,36 @@ const NETFLIX = { provider_id: 8, provider_name: 'Netflix', logo_path: '/logo.jp
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Sets up a call counter for /api/movie/** and returns a getter. */
-async function trackMovieCalls(page) {
-  let count = 0
-  const calls = []
-
-  await page.context().route('**/api/movie/**', (route, request) => {
-    count++
-    calls.push(request.url())
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        tmdb_id: 238,
-        title: 'The Godfather',
-        watch_providers: [NETFLIX]
-      })
-    })
-  })
+/**
+ * Patches window.fetch via addInitScript to intercept /api/movie/ calls,
+ * recording each URL in window.__movieCalls and returning the mock data.
+ * Returns async getters backed by page.evaluate() so they work in WebKit.
+ *
+ * Call BEFORE page.goto(). If called after mockAllApis(), it wraps the
+ * mocked fetch and takes priority for movie calls.
+ */
+async function trackMovieCalls(page, mockData = null) {
+  const data = mockData || { tmdb_id: 238, title: 'The Godfather', watch_providers: [NETFLIX] }
+  await page.addInitScript(({ data }) => {
+    window.__movieCalls = []
+    const _prev = window.fetch ? window.fetch.bind(window) : fetch.bind(window)
+    window.fetch = function (input, init) {
+      const url = typeof input === 'string' ? input : (input && input.url) || String(input)
+      if (url.includes('/api/movie/')) {
+        window.__movieCalls.push(url)
+        return Promise.resolve(new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }))
+      }
+      return _prev(input, init)
+    }
+  }, { data })
 
   return {
-    getCount: () => count,
-    getCalls: () => calls
+    getCount: () => page.evaluate(() => window.__movieCalls.length),
+    getCalls: () => page.evaluate(() => window.__movieCalls),
+    reset:    () => page.evaluate(() => { window.__movieCalls = [] })
   }
 }
 
@@ -82,21 +90,14 @@ test('fresh cache entries suppress /api/movie calls entirely', async ({ page }) 
     streamingCache: cache
   })
 
-  // Track movie calls BEFORE mock setup so the counter captures everything
   const tracker = await trackMovieCalls(page)
-
-  // Mock providers (App.svelte needs this on mount)
-  await page.context().route('**/api/providers', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [] }) })
-  )
+  await overrideMock(page, '/api/providers', { data: { results: [] } })
 
   await page.goto('/')
-  // Wait for app to be interactive
   await expect(page.locator('nav')).toBeVisible()
-  // Allow any async reactive effects to settle
   await page.waitForLoadState('networkidle')
 
-  expect(tracker.getCount()).toBe(0)
+  expect(await tracker.getCount()).toBe(0)
 })
 
 // ---------------------------------------------------------------------------
@@ -111,16 +112,13 @@ test('missing cache entries trigger one /api/movie fetch per film', async ({ pag
   })
 
   const tracker = await trackMovieCalls(page)
-
-  await page.context().route('**/api/providers', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [] }) })
-  )
+  await overrideMock(page, '/api/providers', { data: { results: [] } })
 
   await page.goto('/')
   await expect(page.locator('nav')).toBeVisible()
   await page.waitForLoadState('networkidle')
 
-  expect(tracker.getCount()).toBe(2)
+  expect(await tracker.getCount()).toBe(2)
 })
 
 // ---------------------------------------------------------------------------
@@ -145,16 +143,13 @@ test('expired cache entries are re-fetched', async ({ page }) => {
   })
 
   const tracker = await trackMovieCalls(page)
-
-  await page.context().route('**/api/providers', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [] }) })
-  )
+  await overrideMock(page, '/api/providers', { data: { results: [] } })
 
   await page.goto('/')
   await expect(page.locator('nav')).toBeVisible()
   await page.waitForLoadState('networkidle')
 
-  expect(tracker.getCount()).toBe(1)
+  expect(await tracker.getCount()).toBe(1)
 })
 
 // ---------------------------------------------------------------------------
@@ -180,17 +175,14 @@ test('only stale films are re-fetched when cache is mixed', async ({ page }) => 
   })
 
   const tracker = await trackMovieCalls(page)
-
-  await page.context().route('**/api/providers', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [] }) })
-  )
+  await overrideMock(page, '/api/providers', { data: { results: [] } })
 
   await page.goto('/')
   await expect(page.locator('nav')).toBeVisible()
   await page.waitForLoadState('networkidle')
 
-  expect(tracker.getCount()).toBe(1)
-  expect(tracker.getCalls()[0]).toContain('/api/movie/278')
+  expect(await tracker.getCount()).toBe(1)
+  expect((await tracker.getCalls())[0]).toContain('/api/movie/278')
 })
 
 // ---------------------------------------------------------------------------
@@ -207,44 +199,25 @@ test('adding a new film to favorites triggers exactly one movie fetch for that f
     streamingCache: cache
   })
 
-  const tracker = await trackMovieCalls(page)
-
+  // mockAllApis first, then trackMovieCalls so the tracker wraps the mocked
+  // fetch and takes priority for movie calls (addInitScript LIFO wrapping).
   await mockAllApis(page)
-  // Override movie route to count calls (mockAllApis sets a default handler;
-  // our tracker was registered first so it has lower priority — re-register after)
-  // Actually tracker was registered first (lower priority in LIFO) — re-register
-  // the tracker AFTER mockAllApis so it intercepts instead.
-
-  // Reset and re-register tracker after mockAllApis
-  let movieCallCount = 0
-  const movieCallUrls = []
-  await page.context().route('**/api/movie/**', (route, request) => {
-    movieCallCount++
-    movieCallUrls.push(request.url())
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ tmdb_id: 278, title: 'The Shawshank Redemption', watch_providers: [] })
-    })
-  })
+  const tracker = await trackMovieCalls(page, { tmdb_id: 278, title: 'The Shawshank Redemption', watch_providers: [] })
 
   await page.goto('/#/add')
   await expect(page.getByText('The Godfather').first()).toBeVisible()
 
-  // Reset count after initial page load (genre films also trigger movie fetches for providers)
-  const countBeforeAdd = movieCallCount
+  // Reset counter after initial load (genre films may trigger movie fetches)
+  await tracker.reset()
 
   // Add Shawshank (tmdb_id 278, not in favorites, not in cache)
-  // The genre results include Shawshank — click its add button
   await page.getByRole('button', { name: '+ Add to Favorites' }).nth(1).click()
   await expect(page.getByText('Added!')).toBeVisible()
 
-  // Wait for reactive cache refresh
   await page.waitForLoadState('networkidle')
 
-  // Exactly one new fetch should have been made (for film 278)
-  const newCalls = movieCallUrls.slice(countBeforeAdd)
-  expect(newCalls.some(url => url.includes('/api/movie/278'))).toBe(true)
+  expect(await tracker.getCount()).toBe(1)
+  expect((await tracker.getCalls())[0]).toContain('/api/movie/278')
 })
 
 // ---------------------------------------------------------------------------
@@ -258,16 +231,8 @@ test('provider data is persisted to localStorage after a cache refresh', async (
     // No cache — will trigger a fetch
   })
 
-  await page.context().route('**/api/movie/**', route =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ tmdb_id: 238, title: 'The Godfather', watch_providers: [NETFLIX] })
-    })
-  )
-  await page.context().route('**/api/providers', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [] }) })
-  )
+  await overrideMock(page, '/api/movie/', { data: { tmdb_id: 238, title: 'The Godfather', watch_providers: [NETFLIX] } })
+  await overrideMock(page, '/api/providers', { data: { results: [] } })
 
   await page.goto('/')
   await expect(page.locator('nav')).toBeVisible()

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { skipOnboarding, seedStorage, mockAllApis, fixtures } from './helpers.js'
+import { skipOnboarding, seedStorage, mockAllApis, overrideMock, fixtures } from './helpers.js'
 
 /**
  * Chaos / edge-case tests — API errors, empty results, list-full state.
@@ -19,10 +19,7 @@ test.describe('Chaos — genre top50 API error', () => {
   test('shows no-results state on Add page when genre API returns 503', async ({ page }) => {
     await skipOnboarding(page)
     await mockAllApis(page)
-    // Override after mockAllApis so this handler wins (Playwright LIFO)
-    await page.context().route('**/api/genre-top50**', route =>
-      route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: true }) })
-    )
+    await overrideMock(page, '/api/genre-top50', { data: { error: true }, status: 503 })
     await page.goto('/#/add')
     await expect(page.getByText('No results for this genre right now.')).toBeVisible()
   })
@@ -30,9 +27,7 @@ test.describe('Chaos — genre top50 API error', () => {
   test('clicking a genre filter shows no-results state when genre API returns 503', async ({ page }) => {
     await skipOnboarding(page)
     await mockAllApis(page)
-    await page.context().route('**/api/genre-top50**', route =>
-      route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: true }) })
-    )
+    await overrideMock(page, '/api/genre-top50', { data: { error: true }, status: 503 })
     await page.goto('/#/add')
     await page.getByRole('button', { name: 'Action' }).click()
     await expect(page.getByText('No results for this genre right now.')).toBeVisible()
@@ -43,9 +38,7 @@ test.describe('Chaos — search API error', () => {
   test('shows no-results state when search API returns 503', async ({ page }) => {
     await skipOnboarding(page)
     await mockAllApis(page)
-    await page.context().route('**/api/search**', route =>
-      route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: true }) })
-    )
+    await overrideMock(page, '/api/search', { data: { error: true }, status: 503 })
     await page.goto('/#/add')
     await page.getByRole('searchbox').fill('godfather')
     await expect(page.getByText('No films found for that search.')).toBeVisible()
@@ -56,9 +49,7 @@ test.describe('Chaos — search returns no results', () => {
   test('shows no-results message', async ({ page }) => {
     await skipOnboarding(page)
     await mockAllApis(page)
-    await page.context().route('**/api/search**', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixtures.searchEmpty) })
-    )
+    await overrideMock(page, '/api/search', { data: fixtures.searchEmpty })
     await page.goto('/#/add')
     await page.getByRole('searchbox').fill('xyzunknownfilm')
     await expect(page.getByText('No films found for that search.')).toBeVisible()
@@ -70,9 +61,7 @@ test.describe('Chaos — person search API error', () => {
     await skipOnboarding(page)
     await mockAllApis(page)
     // person/search uses direct await (not allSettled) → sets personError='network'
-    await page.context().route('**/api/person/search**', route =>
-      route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: true }) })
-    )
+    await overrideMock(page, '/api/person/search', { data: { error: true }, status: 503 })
     await page.goto('/#/add')
     await page.getByRole('button', { name: 'Film', exact: true }).click()
     await page.getByText('Director / Actor').click()
@@ -84,9 +73,7 @@ test.describe('Chaos — person search API error', () => {
 test.describe('Chaos — providers API error on Settings', () => {
   test('shows error state and Try Again button', async ({ page }) => {
     await skipOnboarding(page)
-    await page.context().route('**/api/providers', route =>
-      route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: true }) })
-    )
+    await overrideMock(page, '/api/providers', { data: { error: true }, status: 503 })
     await page.goto('/#/settings')
     await expect(page.getByText('Something went wrong loading streaming services')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Try Again' })).toBeVisible()
