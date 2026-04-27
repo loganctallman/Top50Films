@@ -273,7 +273,8 @@ ${report}
   await ghPost('/issues', {
     title: `[QA Agent] CI failure — \`${HEAD_BRANCH}\` @ ${shortSha}`,
     body: issueBody,
-    labels: ['qa-failure']
+    labels: ['qa-failure'],
+    assignees: [REPO.split('/')[0]]
   })
 
   console.log('Issue created successfully.')
