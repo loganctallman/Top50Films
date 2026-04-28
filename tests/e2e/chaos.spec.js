@@ -223,6 +223,12 @@ test.describe('Mock infrastructure — overrideMock LIFO priority', () => {
   })
 
   test('abort: true override is sticky for the page lifetime (not consumed after first request)', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__unhandledRejections = []
+      window.addEventListener('unhandledrejection', e => {
+        window.__unhandledRejections.push(e.reason?.message || String(e.reason))
+      })
+    })
     await skipOnboarding(page)
     await mockAllApis(page)
     await overrideMock(page, '/api/search', { abort: true })
@@ -230,9 +236,27 @@ test.describe('Mock infrastructure — overrideMock LIFO priority', () => {
     // First search — aborted → no-results
     await page.getByRole('searchbox').fill('godfather')
     await expect(page.getByText('No films found for that search.')).toBeVisible()
-    // Second search — override is permanent for the page lifetime, not a one-shot pop
+    // Clear so the component registers a genuine input-change event on the next fill,
+    // guaranteeing a new fetch cycle rather than a memoised/debounced render.
+    await page.getByRole('searchbox').clear()
+    // Second search — override must still be active (sticky, not a one-shot pop)
     await page.getByRole('searchbox').fill('batman')
     await expect(page.getByText('No films found for that search.')).toBeVisible()
+    // Neither aborted fetch should leak as an unhandled rejection
+    expect(await page.evaluate(() => window.__unhandledRejections)).toHaveLength(0)
+  })
+
+  test('{ data } override registered after abort takes priority — reverse LIFO order', async ({ page }) => {
+    await skipOnboarding(page)
+    await mockAllApis(page)
+    // Register abort first, then a normal fixture after — the fixture (registered last)
+    // must win. If the LIFO stack iterates forwards instead of backwards, abort wins
+    // and "No films found" appears instead of actual results.
+    await overrideMock(page, '/api/search', { abort: true })
+    await overrideMock(page, '/api/search', { data: fixtures.searchResults })
+    await page.goto('/#/add')
+    await page.getByRole('searchbox').fill('godfather')
+    await expect(page.getByText('The Godfather').first()).toBeVisible()
   })
 })
 
