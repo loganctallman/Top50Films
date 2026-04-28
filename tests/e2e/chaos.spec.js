@@ -184,6 +184,14 @@ test.describe('Mock infrastructure — overrideMock LIFO priority', () => {
   })
 
   test('abort: true override registered after mockAllApis takes priority — allSettled path', async ({ page }) => {
+    // allSettled is supposed to absorb the TypeError silently, but if the mock
+    // infrastructure leaks the rejection before allSettled wraps it the sentinel catches it.
+    await page.addInitScript(() => {
+      window.__unhandledRejections = []
+      window.addEventListener('unhandledrejection', e => {
+        window.__unhandledRejections.push(e.reason?.message || String(e.reason))
+      })
+    })
     await skipOnboarding(page)
     await mockAllApis(page)
     // /api/search is consumed via Promise.allSettled — a different consumer path than
@@ -193,6 +201,37 @@ test.describe('Mock infrastructure — overrideMock LIFO priority', () => {
     await overrideMock(page, '/api/search', { abort: true })
     await page.goto('/#/add')
     await page.getByRole('searchbox').fill('godfather')
+    await expect(page.getByText('No films found for that search.')).toBeVisible()
+    expect(await page.evaluate(() => window.__unhandledRejections)).toHaveLength(0)
+  })
+
+  test('abort: true override for /api/providers shows error state (LIFO guard)', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__unhandledRejections = []
+      window.addEventListener('unhandledrejection', e => {
+        window.__unhandledRejections.push(e.reason?.message || String(e.reason))
+      })
+    })
+    await skipOnboarding(page)
+    await mockAllApis(page)
+    // /api/providers baseline returns the providers fixture; abort override registered
+    // after must win. Settings page shows error state when providers fetch fails.
+    await overrideMock(page, '/api/providers', { abort: true })
+    await page.goto('/#/settings')
+    await expect(page.getByText('Something went wrong loading streaming services')).toBeVisible()
+    expect(await page.evaluate(() => window.__unhandledRejections)).toHaveLength(0)
+  })
+
+  test('abort: true override is sticky for the page lifetime (not consumed after first request)', async ({ page }) => {
+    await skipOnboarding(page)
+    await mockAllApis(page)
+    await overrideMock(page, '/api/search', { abort: true })
+    await page.goto('/#/add')
+    // First search — aborted → no-results
+    await page.getByRole('searchbox').fill('godfather')
+    await expect(page.getByText('No films found for that search.')).toBeVisible()
+    // Second search — override is permanent for the page lifetime, not a one-shot pop
+    await page.getByRole('searchbox').fill('batman')
     await expect(page.getByText('No films found for that search.')).toBeVisible()
   })
 })
